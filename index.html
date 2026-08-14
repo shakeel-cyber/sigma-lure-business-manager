@@ -15,6 +15,7 @@
   <link rel="icon" type="image/png" href="logo.png">
   
   <link rel="stylesheet" href="styles.css">
+  <script src="html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -102,9 +103,37 @@
         </div>
       </div>
 
+      <!-- NEW ORDERS (PRE-PRODUCTION QUEUE) CARD ON HOME PAGE -->
+      <div class="card" id="home-new-orders-card">
+        <div class="card-title">
+          <span>📋 New Orders (Pre-Production Queue)</span>
+          <button class="btn btn-primary btn-sm" id="open-add-new-order-modal">+ Note Order</button>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+          Note incoming orders before lure manufacturing. Once ready, tap <strong>"Convert to Sale"</strong> to create invoice & save.
+        </p>
+        <div id="home-new-orders-list-container"></div>
+      </div>
+
       <!-- Quick Action Buttons -->
       <div class="card-title">Business Hub</div>
       <div class="dashboard-grid">
+        <button class="dash-btn" data-target="new-orders-view">
+          <div class="dash-btn-icon">📋</div>
+          <div>
+            <div class="dash-btn-title">New Orders</div>
+            <div class="dash-btn-subtitle">Incoming pre-orders</div>
+          </div>
+        </button>
+
+        <button class="dash-btn" data-target="sales-view">
+          <div class="dash-btn-icon">💰</div>
+          <div>
+            <div class="dash-btn-title">Sales Tracker</div>
+            <div class="dash-btn-subtitle">Completed orders</div>
+          </div>
+        </button>
+
         <button class="dash-btn" data-target="shops-view">
           <div class="dash-btn-icon">🏪</div>
           <div>
@@ -118,14 +147,6 @@
           <div>
             <div class="dash-btn-title">Customers</div>
             <div class="dash-btn-subtitle">Manage direct buyers</div>
-          </div>
-        </button>
-
-        <button class="dash-btn" data-target="sales-view">
-          <div class="dash-btn-icon">💰</div>
-          <div>
-            <div class="dash-btn-title">Sales Tracker</div>
-            <div class="dash-btn-subtitle">Create & view sales</div>
           </div>
         </button>
 
@@ -157,7 +178,7 @@
           <div class="dash-btn-icon">📄</div>
           <div>
             <div class="dash-btn-title">Invoices</div>
-            <div class="dash-btn-subtitle">Generate & share</div>
+            <div class="dash-btn-subtitle">Generate & share image</div>
           </div>
         </button>
 
@@ -169,13 +190,27 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="backup-view" style="grid-column: span 2;">
+        <button class="dash-btn" data-target="backup-view">
           <div class="dash-btn-icon">💾</div>
           <div>
-            <div class="dash-btn-title">Backup & Settings</div>
-            <div class="dash-btn-subtitle">Export data, catalog & restore</div>
+            <div class="dash-btn-title">Backup</div>
+            <div class="dash-btn-subtitle">Data backup & restore</div>
           </div>
         </button>
+      </div>
+    </section>
+
+    <!-- NEW ORDERS FULL VIEW -->
+    <section id="new-orders-view" class="view-section">
+      <div class="card">
+        <div class="card-title">
+          <span>📋 Incoming Custom Orders</span>
+          <button class="btn btn-primary btn-sm" id="open-add-new-order-modal-2">+ Add New Order</button>
+        </div>
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+          Queue for newly received customer orders before making lures.
+        </p>
+        <div id="full-new-orders-list-container"></div>
       </div>
     </section>
 
@@ -544,11 +579,15 @@
 
   </main>
 
-  <!-- BOTTOM NAVIGATION BAR -->
+  <!-- BOTTOM NAVIGATION BAR (FIXED POSITION LOCKED) -->
   <nav class="bottom-nav">
     <button class="nav-item active" data-target="dashboard-view">
       <span class="icon">🏠</span>
       <span>Home</span>
+    </button>
+    <button class="nav-item" data-target="new-orders-view">
+      <span class="icon">📋</span>
+      <span>Orders</span>
     </button>
     <button class="nav-item" data-target="shops-view">
       <span class="icon">🏪</span>
@@ -562,13 +601,88 @@
       <span class="icon">💰</span>
       <span>Sales</span>
     </button>
-    <button class="nav-item" data-target="pending-view">
-      <span class="icon">💳</span>
-      <span>Pending</span>
-    </button>
   </nav>
 
   <!-- ================= MODALS ================= -->
+
+  <!-- Add New Order Modal (Pre-Production) -->
+  <div id="add-new-order-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Note Incoming New Order</div>
+        <button class="modal-close close-modal-btn">✕</button>
+      </div>
+      <form id="add-new-order-form">
+        <div class="form-group">
+          <label class="form-label">Customer / Buyer Name *</label>
+          <input type="text" id="order-customer-name" class="form-input" required placeholder="e.g. Fahid / Sea Catch Shop">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" id="order-phone" class="form-input" placeholder="e.g. +91 9876543210">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lure Selection / Product *</label>
+          <select id="order-lure-select" class="form-select" required></select>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Quantity (pcs) *</label>
+            <input type="number" id="order-quantity" class="form-input" min="1" value="1" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estimated Amount (₹) *</label>
+            <input type="number" id="order-estimated-amount" class="form-input" min="0" step="0.01" required placeholder="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Additional Custom Notes</label>
+          <textarea id="order-notes" class="form-textarea" rows="3" placeholder="e.g. Custom tiger pattern, assist hook color preference, target date..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Save New Order</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit New Order Modal -->
+  <div id="edit-new-order-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Edit Order Entry</div>
+        <button class="modal-close close-modal-btn">✕</button>
+      </div>
+      <form id="edit-new-order-form">
+        <input type="hidden" id="edit-order-id">
+        <div class="form-group">
+          <label class="form-label">Customer / Buyer Name *</label>
+          <input type="text" id="edit-order-customer-name" class="form-input" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" id="edit-order-phone" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lure Selection / Product *</label>
+          <select id="edit-order-lure-select" class="form-select" required></select>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Quantity (pcs) *</label>
+            <input type="number" id="edit-order-quantity" class="form-input" min="1" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estimated Amount (₹) *</label>
+            <input type="number" id="edit-order-estimated-amount" class="form-input" min="0" step="0.01" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Additional Custom Notes</label>
+          <textarea id="edit-order-notes" class="form-textarea" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Update Order Entry</button>
+      </form>
+    </div>
+  </div>
 
   <!-- Add Shop Modal -->
   <div id="add-shop-modal" class="modal-overlay">
@@ -774,7 +888,7 @@
     </div>
   </div>
 
-  <!-- Invoice View / Print / Share Modal -->
+  <!-- Invoice View / Print / Image Share Modal -->
   <div id="invoice-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 600px;">
       <div class="modal-header">
@@ -786,9 +900,12 @@
         <!-- Dynamic Invoice HTML rendered here -->
       </div>
 
-      <div style="display: flex; gap: 10px; margin-top: 14px;">
-        <button class="btn btn-primary btn-block" id="share-invoice-btn">Share Invoice</button>
-        <button class="btn btn-secondary" onclick="window.print();">Print</button>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary btn-block" id="share-invoice-img-btn">📱 Share Invoice Image</button>
+          <button class="btn btn-secondary" id="download-invoice-img-btn" style="white-space: nowrap;">💾 Save Image</button>
+        </div>
+        <button class="btn btn-secondary btn-block" onclick="window.print();">🖨️ Print</button>
       </div>
     </div>
   </div>

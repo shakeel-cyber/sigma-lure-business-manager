@@ -1,10 +1,10 @@
 /**
  * Sigma Lures - Offline-First IndexedDB Manager
- * Handles data persistence, safe non-destructive migrations, preloaded catalog, and JSON backups.
+ * Handles data persistence, safe non-destructive migrations, preloaded catalog, JSON backups, and New Orders queue.
  */
 
 const DB_NAME = 'SigmaLuresDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented version to safely handle schema additions
 
 // Default Preloaded Product Catalog with Wholesale & Retail Prices
 const DEFAULT_CATALOG = [
@@ -21,7 +21,7 @@ const DEFAULT_CATALOG = [
 let dbInstance = null;
 
 /**
- * Initialize IndexedDB securely
+ * Initialize IndexedDB securely and non-destructively
  */
 export function initDB() {
   return new Promise((resolve, reject) => {
@@ -77,17 +77,37 @@ export function initDB() {
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'key' });
       }
+
+      if (!db.objectStoreNames.contains('newOrders')) {
+        const newOrderStore = db.createObjectStore('newOrders', { keyPath: 'id' });
+        newOrderStore.createIndex('customerName', 'customerName', { unique: false });
+        newOrderStore.createIndex('createdAt', 'createdAt', { unique: false });
+        newOrderStore.createIndex('status', 'status', { unique: false });
+      }
     };
 
     request.onsuccess = async (event) => {
       dbInstance = event.target.result;
 
-      // Seed / update catalog safely
-      for (const item of DEFAULT_CATALOG) {
-        await saveItem('catalog', item);
+      // Ensure newOrders store exists dynamically if version upgrade skipped
+      if (!dbInstance.objectStoreNames.contains('newOrders')) {
+        dbInstance.close();
+        dbInstance = null;
+        const upgradeReq = indexedDB.open(DB_NAME, dbInstance ? dbInstance.version + 1 : DB_VERSION + 1);
+        upgradeReq.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('newOrders')) {
+            db.createObjectStore('newOrders', { keyPath: 'id' });
+          }
+        };
+        upgradeReq.onsuccess = (e) => {
+          dbInstance = e.target.result;
+          seedCatalogAndResolve(resolve);
+        };
+        return;
       }
 
-      resolve(dbInstance);
+      seedCatalogAndResolve(resolve);
     };
 
     request.onerror = (event) => {
@@ -95,6 +115,14 @@ export function initDB() {
       reject(event.target.error);
     };
   });
+}
+
+async function seedCatalogAndResolve(resolve) {
+  // Seed / update catalog safely
+  for (const item of DEFAULT_CATALOG) {
+    await saveItem('catalog', item);
+  }
+  resolve(dbInstance);
 }
 
 function getStore(storeName, mode = 'readonly') {
@@ -154,7 +182,7 @@ export async function exportBackupJSON() {
   await initDB();
   const backup = {
     app: 'Sigma Lures Business Manager',
-    version: '1.2',
+    version: '2.0',
     exportDate: new Date().toISOString(),
     shops: await getAll('shops'),
     customers: await getAll('customers'),
@@ -162,7 +190,8 @@ export async function exportBackupJSON() {
     purchases: await getAll('purchases'),
     plannedPurchases: await getAll('plannedPurchases'),
     catalog: await getAll('catalog'),
-    settings: await getAll('settings')
+    settings: await getAll('settings'),
+    newOrders: await getAll('newOrders')
   };
   return JSON.stringify(backup, null, 2);
 }
@@ -196,6 +225,7 @@ export async function importBackupJSON(jsonContent) {
   await putMany('plannedPurchases', parsed.plannedPurchases);
   await putMany('catalog', parsed.catalog);
   await putMany('settings', parsed.settings);
+  await putMany('newOrders', parsed.newOrders);
 
   return true;
 }

@@ -1,7 +1,7 @@
 /**
  * Sigma Lures — Core Application Logic
  * Mobile-First Offline Business Management
- * Full Back Button, Edit & Delete Shop/Customer Features, Wholesale & Retail Catalogue Prices & Stealth Theme
+ * Full Back Button, Edit & Delete, Retail & Wholesale Pricing, PNG Invoice Image Generation & New Orders Queue
  */
 
 import {
@@ -24,6 +24,7 @@ const state = {
   purchases: [],
   plannedPurchases: [],
   catalog: [],
+  newOrders: [],
   currentBuyerType: 'shop', // 'shop' | 'customer'
   currentCustomerType: 'wholesale', // 'wholesale' | 'retail'
   pendingDeleteAction: null,
@@ -216,7 +217,7 @@ window.confirmDeleteCustomer = (custId) => {
   const customer = state.customers.find(c => c.id === targetId);
   if (!customer) return;
 
-  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === targetId);
+  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === custId);
   let msg = `Delete customer "${customer.name}" permanently?`;
   if (custSales.length > 0) {
     msg += ` (${custSales.length} historical purchase records for this customer will remain in past sales logs).`;
@@ -258,14 +259,17 @@ window.openInvoiceModal = (saleId) => {
   `).join('');
 
   printArea.innerHTML = `
-    <div class="invoice-paper">
+    <div class="invoice-paper" id="invoice-paper-element">
       <div class="invoice-header">
-        <div>
-          <div class="invoice-brand">SIGMA LURES</div>
-          <div style="font-size:0.8rem; color:#475569;">Handmade Premium Fishing Lures</div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <img src="logo.png" alt="Sigma Logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 6px; background: #000; border: 1px solid #cbd5e1;">
+          <div>
+            <div class="invoice-brand">SIGMA LURES</div>
+            <div style="font-size:0.75rem; color:#475569; font-weight: 500;">Handmade Premium Fishing Lures</div>
+          </div>
         </div>
         <div class="invoice-meta">
-          <strong>INVOICE</strong><br>
+          <strong style="color: #0f172a; font-size: 0.95rem;">INVOICE</strong><br>
           #${sale.invoiceNo}<br>
           Date: ${sale.date}
         </div>
@@ -274,7 +278,7 @@ window.openInvoiceModal = (saleId) => {
       <div class="invoice-details-grid">
         <div>
           <strong style="font-size:0.75rem; color:#64748b; text-transform:uppercase;">Billed To</strong><br>
-          <strong style="font-size:1.05rem;">${escapeHTML(sale.buyerName)}</strong><br>
+          <strong style="font-size:1.05rem; color:#0f172a;">${escapeHTML(sale.buyerName)}</strong><br>
           <span style="font-size:0.8rem; color:#475569;">Buyer Type: ${sale.buyerType.toUpperCase()} (${sale.customerType.toUpperCase()})</span>
         </div>
       </div>
@@ -318,11 +322,11 @@ window.openInvoiceModal = (saleId) => {
           <span>Final Total:</span>
           <span>₹${sale.total.toLocaleString('en-IN')}</span>
         </div>
-        <div class="invoice-total-row" style="margin-top:6px; color:#16a34a; font-weight:600;">
+        <div class="invoice-total-row" style="margin-top:6px; color:#16a34a; font-weight:700;">
           <span>Amount Paid:</span>
           <span>₹${sale.paid.toLocaleString('en-IN')}</span>
         </div>
-        <div class="invoice-total-row" style="color:#dc2626; font-weight:600;">
+        <div class="invoice-total-row" style="color:#dc2626; font-weight:700;">
           <span>Pending Amount:</span>
           <span>₹${sale.pending.toLocaleString('en-IN')}</span>
         </div>
@@ -331,6 +335,167 @@ window.openInvoiceModal = (saleId) => {
   `;
 
   openModal('invoice-modal');
+};
+
+window.shareInvoiceAsImage = async (mode = 'share') => {
+  const sale = state.currentInvoiceSale;
+  if (!sale) return;
+
+  const targetEl = document.getElementById('invoice-paper-element');
+  if (!targetEl) return;
+
+  showToast('Generating invoice image...', 'info');
+
+  try {
+    if (typeof html2canvas === 'undefined') {
+      throw new Error('Image renderer library not loaded');
+    }
+
+    const canvas = await html2canvas(targetEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        showToast('Failed to create image blob', 'danger');
+        return;
+      }
+
+      const fileName = `Invoice_${sale.invoiceNo}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      if (mode === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `Invoice #${sale.invoiceNo} - Sigma Lures`,
+            text: `Invoice #${sale.invoiceNo} for ${sale.buyerName}`
+          });
+          showToast('Invoice image shared successfully!');
+        } catch (shareErr) {
+          if (shareErr.name !== 'AbortError') {
+            downloadBlob(blob, fileName);
+          }
+        }
+      } else {
+        downloadBlob(blob, fileName);
+      }
+    }, 'image/png');
+
+  } catch (err) {
+    console.error('Invoice image error:', err);
+    showToast('Image export error: ' + err.message, 'danger');
+  }
+};
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`Invoice saved as ${fileName}`);
+}
+
+window.openNewOrderModal = () => {
+  populateOrderLureDropdown('order-lure-select');
+  openModal('add-new-order-modal');
+};
+
+window.openEditNewOrderModal = (orderId) => {
+  const order = state.newOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  const idInput = document.getElementById('edit-order-id');
+  if (idInput) idInput.value = order.id;
+
+  const nameInput = document.getElementById('edit-order-customer-name');
+  if (nameInput) nameInput.value = order.customerName;
+
+  const phoneInput = document.getElementById('edit-order-phone');
+  if (phoneInput) phoneInput.value = order.phone || '';
+
+  populateOrderLureDropdown('edit-order-lure-select');
+  const lureSelect = document.getElementById('edit-order-lure-select');
+  if (lureSelect) lureSelect.value = order.lureId || '';
+
+  const qtyInput = document.getElementById('edit-order-quantity');
+  if (qtyInput) qtyInput.value = order.quantity;
+
+  const estInput = document.getElementById('edit-order-estimated-amount');
+  if (estInput) estInput.value = order.estimatedAmount;
+
+  const notesInput = document.getElementById('edit-order-notes');
+  if (notesInput) notesInput.value = order.notes || '';
+
+  openModal('edit-new-order-modal');
+};
+
+window.confirmDeleteNewOrder = (orderId) => {
+  const order = state.newOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  confirmDelete(`Delete new order for "${order.customerName}"?`, async () => {
+    await deleteItem('newOrders', orderId);
+    state.newOrders = state.newOrders.filter(o => o.id !== orderId);
+    showToast('Order entry deleted');
+    renderAllViews();
+  });
+};
+
+window.convertToSale = (orderId) => {
+  const order = state.newOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  // Check or add customer to state if not exists
+  let customerObj = state.customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
+  let buyerType = 'customer';
+
+  if (!customerObj) {
+    let shopObj = state.shops.find(s => s.name.toLowerCase() === order.customerName.toLowerCase());
+    if (shopObj) {
+      buyerType = 'shop';
+      customerObj = shopObj;
+    }
+  }
+
+  switchView('sales-view', true, true);
+  openNewSaleForm();
+
+  state.currentBuyerType = buyerType;
+  document.querySelectorAll('.buyer-type-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-type') === buyerType);
+  });
+  populateBuyerDropdown();
+
+  const buyerSel = document.getElementById('sale-buyer-select');
+  if (buyerSel && customerObj) {
+    buyerSel.value = customerObj.id;
+  }
+
+  // Populate first product row if cat item exists
+  const rowsContainer = document.getElementById('product-rows-container');
+  if (rowsContainer) {
+    const firstRow = rowsContainer.querySelector('.product-item-row');
+    if (firstRow) {
+      const prodSel = firstRow.querySelector('.prod-select');
+      const qtyInput = firstRow.querySelector('.prod-qty');
+      const priceInput = firstRow.querySelector('.prod-price');
+
+      if (prodSel && order.lureId) prodSel.value = order.lureId;
+      if (qtyInput) qtyInput.value = order.quantity;
+      if (priceInput && order.quantity > 0) {
+        priceInput.value = (order.estimatedAmount / order.quantity).toFixed(2);
+      }
+      prodSel?.dispatchEvent(new Event('change'));
+    }
+  }
+
+  showToast(`Order for ${order.customerName} pre-filled in Sales Form!`);
 };
 
 window.openUpdatePaymentModal = (saleId) => {
@@ -431,7 +596,9 @@ async function loadAllData() {
     state.purchases = await getAll('purchases');
     state.plannedPurchases = await getAll('plannedPurchases');
     state.catalog = await getAll('catalog');
+    state.newOrders = await getAll('newOrders');
     state.sales.sort((a, b) => new Date(b.date) - new Date(a.date));
+    state.newOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (e) {
     console.error('Failed loading DB data:', e);
   }
@@ -561,6 +728,31 @@ function setupEventListeners() {
     if (searchInput) searchInput.value = '';
     clearSearchBtn?.classList.remove('active');
     switchView(state.currentView, false, false);
+  });
+
+  // New Orders Forms
+  document.getElementById('open-add-new-order-modal')?.addEventListener('click', window.openNewOrderModal);
+  document.getElementById('open-add-new-order-modal-2')?.addEventListener('click', window.openNewOrderModal);
+  document.getElementById('add-new-order-form')?.addEventListener('submit', handleAddNewOrder);
+  document.getElementById('edit-new-order-form')?.addEventListener('submit', handleEditNewOrder);
+
+  document.getElementById('order-lure-select')?.addEventListener('change', (e) => {
+    const selectedCat = state.catalog.find(c => c.id === e.target.value);
+    const qty = parseInt(document.getElementById('order-quantity')?.value) || 1;
+    const estInput = document.getElementById('order-estimated-amount');
+    if (selectedCat && estInput) {
+      estInput.value = selectedCat.retailPrice * qty;
+    }
+  });
+
+  document.getElementById('order-quantity')?.addEventListener('input', (e) => {
+    const lureId = document.getElementById('order-lure-select')?.value;
+    const selectedCat = state.catalog.find(c => c.id === lureId);
+    const qty = parseInt(e.target.value) || 1;
+    const estInput = document.getElementById('order-estimated-amount');
+    if (selectedCat && estInput) {
+      estInput.value = selectedCat.retailPrice * qty;
+    }
   });
 
   // Shops View
@@ -704,7 +896,116 @@ function setupEventListeners() {
   document.getElementById('comp-month-a')?.addEventListener('change', renderMonthComparison);
   document.getElementById('comp-month-b')?.addEventListener('change', renderMonthComparison);
 
-  document.getElementById('share-invoice-btn')?.addEventListener('click', handleShareInvoice);
+  // Invoice Image Handlers
+  document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
+  document.getElementById('download-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('download'));
+}
+
+function populateOrderLureDropdown(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  select.innerHTML = state.catalog.map(c => `
+    <option value="${c.id}">${escapeHTML(c.name)} ${escapeHTML(c.weight)} (₹${c.retailPrice})</option>
+  `).join('');
+}
+
+async function handleAddNewOrder(e) {
+  e.preventDefault();
+  const customerName = document.getElementById('order-customer-name')?.value.trim();
+  const phone = document.getElementById('order-phone')?.value.trim() || '';
+  const lureId = document.getElementById('order-lure-select')?.value;
+  const quantity = parseInt(document.getElementById('order-quantity')?.value) || 1;
+  const estimatedAmount = parseFloat(document.getElementById('order-estimated-amount')?.value) || 0;
+  const notes = document.getElementById('order-notes')?.value.trim() || '';
+
+  if (!customerName || !lureId) return;
+
+  const catObj = state.catalog.find(c => c.id === lureId);
+  const lureName = catObj ? `${catObj.name} ${catObj.weight}` : 'Custom Jig';
+
+  const order = {
+    id: generateId('order'),
+    customerName,
+    phone,
+    lureId,
+    lureName,
+    quantity,
+    estimatedAmount,
+    notes,
+    status: 'New',
+    createdAt: new Date().toISOString()
+  };
+
+  await saveItem('newOrders', order);
+  state.newOrders.unshift(order);
+  closeModal('add-new-order-modal');
+  e.target.reset();
+  showToast(`New order for "${customerName}" saved!`);
+  renderAllViews();
+}
+
+async function handleEditNewOrder(e) {
+  e.preventDefault();
+  const orderId = document.getElementById('edit-order-id')?.value;
+  const customerName = document.getElementById('edit-order-customer-name')?.value.trim();
+  const phone = document.getElementById('edit-order-phone')?.value.trim() || '';
+  const lureId = document.getElementById('edit-order-lure-select')?.value;
+  const quantity = parseInt(document.getElementById('edit-order-quantity')?.value) || 1;
+  const estimatedAmount = parseFloat(document.getElementById('edit-order-estimated-amount')?.value) || 0;
+  const notes = document.getElementById('edit-order-notes')?.value.trim() || '';
+
+  if (!customerName || !lureId) return;
+
+  const order = state.newOrders.find(o => o.id === orderId);
+  if (!order) return;
+
+  const catObj = state.catalog.find(c => c.id === lureId);
+
+  order.customerName = customerName;
+  order.phone = phone;
+  order.lureId = lureId;
+  order.lureName = catObj ? `${catObj.name} ${catObj.weight}` : 'Custom Jig';
+  order.quantity = quantity;
+  order.estimatedAmount = estimatedAmount;
+  order.notes = notes;
+  order.updatedAt = new Date().toISOString();
+
+  await saveItem('newOrders', order);
+  closeModal('edit-new-order-modal');
+  showToast(`Order entry for "${customerName}" updated!`);
+  renderAllViews();
+}
+
+function renderNewOrdersList() {
+  const homeContainer = document.getElementById('home-new-orders-list-container');
+  const fullContainer = document.getElementById('full-new-orders-list-container');
+
+  const ordersHtml = state.newOrders.length === 0
+    ? `<p style="color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 14px;">No pre-production orders logged yet.</p>`
+    : state.newOrders.map(o => `
+        <div class="list-item">
+          <div class="list-item-header">
+            <span class="list-item-title">📋 ${escapeHTML(o.customerName)} ${o.phone ? `<span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHTML(o.phone)})</span>` : ''}</span>
+            <span class="badge badge-info">₹${o.estimatedAmount.toLocaleString('en-IN')}</span>
+          </div>
+          <div class="list-item-sub">
+            Product: <strong>${escapeHTML(o.lureName)}</strong> × <strong>${o.quantity} pcs</strong><br>
+            ${o.notes ? `Note: <em>${escapeHTML(o.notes)}</em><br>` : ''}
+            <span style="font-size:0.7rem; color:var(--text-muted);">Logged: ${new Date(o.createdAt).toLocaleDateString()}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <button class="btn btn-primary btn-sm" onclick="window.convertToSale('${o.id}')">⚡ Convert to Completed Sale</button>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary btn-sm" onclick="window.openEditNewOrderModal('${o.id}')">✏️ Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteNewOrder('${o.id}')">✕</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+  if (homeContainer) homeContainer.innerHTML = ordersHtml;
+  if (fullContainer) fullContainer.innerHTML = ordersHtml;
 }
 
 function setupDefaultDates() {
@@ -773,6 +1074,7 @@ function switchView(viewId, updateState = true, pushStateToHistory = true) {
 
 function renderAllViews() {
   renderDashboardStats();
+  renderNewOrdersList();
   renderShopsList();
   renderCustomersList();
   renderSalesList();
@@ -1484,44 +1786,6 @@ function renderInvoicesList() {
   });
 
   container.innerHTML = html;
-}
-
-async function handleShareInvoice() {
-  const sale = state.currentInvoiceSale;
-  if (!sale) return;
-
-  const textSummary = `SIGMA LURES - INVOICE #${sale.invoiceNo}
-Customer: ${sale.buyerName}
-Date: ${sale.date}
-Items:
-${sale.items.map(i => `- ${i.product} ${i.weight} x ${i.qty} = ₹${i.amount}`).join('\n')}
-${sale.freeQty > 0 ? `Free Jigs: ${sale.freeQty} pcs\n` : ''}Total Amount: ₹${sale.total}
-Paid: ₹${sale.paid}
-Pending Dues: ₹${sale.pending}
-Status: ${sale.status}`;
-
-  if (navigator.share) {
-    try {
-      await navigator.share({
-        title: `Invoice #${sale.invoiceNo} - Sigma Lures`,
-        text: textSummary
-      });
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        copyToClipboard(textSummary);
-      }
-    }
-  } else {
-    copyToClipboard(textSummary);
-  }
-}
-
-function copyToClipboard(text) {
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('Invoice details copied to clipboard!');
-  }).catch(() => {
-    showToast('Unable to copy automatically', 'warning');
-  });
 }
 
 async function handleAddPurchase(e) {
