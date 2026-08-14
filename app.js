@@ -1,7 +1,7 @@
 /**
  * Sigma Lures — Core Application Logic
  * Mobile-First Offline Business Management
- * Full Back Button, Edit & Delete, Retail & Wholesale Pricing, PNG Invoice Image Generation & New Orders Queue
+ * Full Back Button, Edit & Delete, Retail & Wholesale Pricing, PNG Invoice Image Generation & Full Multi-Product New Orders Queue
  */
 
 import {
@@ -27,6 +27,8 @@ const state = {
   newOrders: [],
   currentBuyerType: 'shop', // 'shop' | 'customer'
   currentCustomerType: 'wholesale', // 'wholesale' | 'retail'
+  currentOrderBuyerType: 'shop', // 'shop' | 'customer' for new order modal
+  currentOrderCustomerType: 'wholesale', // 'wholesale' | 'retail' for new order modal
   pendingDeleteAction: null,
   currentInvoiceSale: null,
   currentInvoiceBlob: null,
@@ -220,7 +222,7 @@ window.confirmDeleteCustomer = (custId) => {
   const customer = state.customers.find(c => c.id === targetId);
   if (!customer) return;
 
-  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === targetId);
+  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === custId);
   let msg = `Delete customer "${customer.name}" permanently?`;
   if (custSales.length > 0) {
     msg += ` (${custSales.length} historical purchase records for this customer will remain in past sales logs).`;
@@ -340,6 +342,31 @@ window.openInvoiceModal = (saleId) => {
   openModal('invoice-modal');
 };
 
+async function getHtml2Canvas() {
+  if (typeof window.html2canvas === 'function') {
+    return window.html2canvas;
+  }
+
+  try {
+    const res = await fetch('./html2canvas.min.js?v=' + Date.now());
+    const code = await res.text();
+    const fn = new Function('window', 'self', 'globalThis', code + '\nreturn window.html2canvas || self.html2canvas || (typeof module !== "undefined" ? module.exports : null);');
+    const h2c = fn(window, window, window);
+    if (typeof h2c === 'function') {
+      window.html2canvas = h2c;
+      return h2c;
+    }
+  } catch (e) {
+    console.error('Failed dynamic execution of html2canvas:', e);
+  }
+
+  if (typeof html2canvas === 'function') {
+    return html2canvas;
+  }
+
+  throw new Error('Image renderer library not loaded');
+}
+
 window.shareInvoiceAsImage = async (mode = 'share') => {
   const sale = state.currentInvoiceSale;
   if (!sale) return;
@@ -350,11 +377,9 @@ window.shareInvoiceAsImage = async (mode = 'share') => {
   showToast('Generating invoice image...', 'info');
 
   try {
-    if (typeof html2canvas === 'undefined') {
-      throw new Error('Image renderer library not loaded');
-    }
+    const h2c = await getHtml2Canvas();
 
-    const canvas = await html2canvas(targetEl, {
+    const canvas = await h2c(targetEl, {
       scale: 2,
       useCORS: true,
       allowTaint: true,
@@ -413,45 +438,232 @@ function downloadBlob(blob, fileName) {
   showToast(`Saved invoice image as ${fileName}`);
 }
 
+// NEW ORDERS LOGIC (FULL MULTI-PRODUCT & SALES MATCHING DETAILS)
 window.openNewOrderModal = () => {
-  populateOrderLureDropdown('order-lure-select');
+  populateOrderBuyerDropdown();
+
+  const rowsContainer = document.getElementById('order-product-rows-container');
+  if (rowsContainer) rowsContainer.innerHTML = '';
+
+  const shipInput = document.getElementById('order-shipping');
+  if (shipInput) shipInput.value = '';
+  const discInput = document.getElementById('order-discount');
+  if (discInput) discInput.value = '';
+  const notesInput = document.getElementById('order-notes');
+  if (notesInput) notesInput.value = '';
+
+  addOrderProductRow();
+  calculateOrderTotals();
   openModal('add-new-order-modal');
 };
 
-window.openEditNewOrderModal = (orderId) => {
-  const order = state.newOrders.find(o => o.id === orderId);
-  if (!order) return;
+function populateOrderBuyerDropdown() {
+  const select = document.getElementById('order-buyer-select');
+  if (!select) return;
 
-  const idInput = document.getElementById('edit-order-id');
-  if (idInput) idInput.value = order.id;
+  const list = state.currentOrderBuyerType === 'shop' ? state.shops : state.customers;
 
-  const nameInput = document.getElementById('edit-order-customer-name');
-  if (nameInput) nameInput.value = order.customerName;
+  if (list.length === 0) {
+    select.innerHTML = `<option value="">No ${state.currentOrderBuyerType}s available - Please add one</option>`;
+    return;
+  }
 
-  const phoneInput = document.getElementById('edit-order-phone');
-  if (phoneInput) phoneInput.value = order.phone || '';
+  select.innerHTML = list.map(item => `
+    <option value="${item.id}">${escapeHTML(item.name)}</option>
+  `).join('');
+}
 
-  populateOrderLureDropdown('edit-order-lure-select');
-  const lureSelect = document.getElementById('edit-order-lure-select');
-  if (lureSelect) lureSelect.value = order.lureId || '';
+function addOrderProductRow() {
+  const container = document.getElementById('order-product-rows-container');
+  if (!container) return;
 
-  const qtyInput = document.getElementById('edit-order-quantity');
-  if (qtyInput) qtyInput.value = order.quantity;
+  const rowId = `order_row_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
-  const estInput = document.getElementById('edit-order-estimated-amount');
-  if (estInput) estInput.value = order.estimatedAmount;
+  const div = document.createElement('div');
+  div.className = 'product-item-row order-item-row';
+  div.id = rowId;
 
-  const notesInput = document.getElementById('edit-order-notes');
-  if (notesInput) notesInput.value = order.notes || '';
+  const catOptions = state.catalog.map(cat => `
+    <option value="${cat.id}">${cat.name} ${cat.weight} (W: ₹${cat.wholesalePrice} | R: ₹${cat.retailPrice || cat.wholesalePrice})</option>
+  `).join('');
 
-  openModal('edit-new-order-modal');
-};
+  div.innerHTML = `
+    <div class="product-row-top">
+      <select class="form-select prod-select" style="flex: 1;">
+        <option value="">-- Select Product --</option>
+        ${catOptions}
+      </select>
+    </div>
+    <div class="product-row-bottom">
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">Qty</label>
+        <input type="number" class="form-input prod-qty" value="1" min="1">
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">Est. Price</label>
+        <input type="number" class="form-input prod-price" placeholder="Price" min="0" step="0.01">
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">Amount</label>
+        <div class="prod-amount" style="font-size: 0.85rem; font-weight:700; padding-top:8px;">₹0</div>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">&nbsp;</label>
+        <button type="button" class="remove-prod-btn">✕</button>
+      </div>
+    </div>
+  `;
+
+  container.appendChild(div);
+
+  const select = div.querySelector('.prod-select');
+  const qtyInput = div.querySelector('.prod-qty');
+  const priceInput = div.querySelector('.prod-price');
+  const removeBtn = div.querySelector('.remove-prod-btn');
+
+  select?.addEventListener('change', () => {
+    const selectedCat = state.catalog.find(c => c.id === select.value);
+    if (selectedCat && priceInput) {
+      if (state.currentOrderCustomerType === 'wholesale') {
+        priceInput.value = selectedCat.wholesalePrice;
+        priceInput.readOnly = true;
+      } else {
+        priceInput.value = selectedCat.retailPrice || selectedCat.wholesalePrice;
+        priceInput.readOnly = false;
+      }
+    }
+    calculateRowAmount(div);
+    calculateOrderTotals();
+  });
+
+  qtyInput?.addEventListener('input', () => {
+    calculateRowAmount(div);
+    calculateOrderTotals();
+  });
+
+  priceInput?.addEventListener('input', () => {
+    calculateRowAmount(div);
+    calculateOrderTotals();
+  });
+
+  removeBtn?.addEventListener('click', () => {
+    div.remove();
+    calculateOrderTotals();
+  });
+
+  if (state.catalog.length > 0 && select) {
+    select.value = state.catalog[0].id;
+    select.dispatchEvent(new Event('change'));
+  }
+}
+
+function updateAllOrderRowPricing() {
+  document.querySelectorAll('.order-item-row').forEach(rowDiv => {
+    const select = rowDiv.querySelector('.prod-select');
+    const priceInput = rowDiv.querySelector('.prod-price');
+    const selectedCat = state.catalog.find(c => c.id === select?.value);
+
+    if (priceInput && selectedCat) {
+      if (state.currentOrderCustomerType === 'wholesale') {
+        priceInput.readOnly = true;
+        priceInput.value = selectedCat.wholesalePrice;
+      } else {
+        priceInput.readOnly = false;
+        priceInput.value = selectedCat.retailPrice || selectedCat.wholesalePrice;
+      }
+    }
+    calculateRowAmount(rowDiv);
+  });
+}
+
+function calculateOrderTotals() {
+  let subtotal = 0;
+  document.querySelectorAll('.order-item-row').forEach(rowDiv => {
+    const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
+    const price = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
+    subtotal += qty * price;
+  });
+
+  const shipping = parseFloat(document.getElementById('order-shipping')?.value) || 0;
+  const discount = parseFloat(document.getElementById('order-discount')?.value) || 0;
+  const total = Math.max(0, subtotal + shipping - discount);
+
+  setText('order-calc-subtotal', `₹${subtotal.toLocaleString('en-IN')}`);
+  setText('order-calc-total', `₹${total.toLocaleString('en-IN')}`);
+}
+
+async function handleAddNewOrder(e) {
+  e.preventDefault();
+  const buyerId = document.getElementById('order-buyer-select')?.value;
+  if (!buyerId) {
+    showToast('Please select a valid buyer', 'danger');
+    return;
+  }
+
+  const buyerList = state.currentOrderBuyerType === 'shop' ? state.shops : state.customers;
+  const buyerObj = buyerList.find(b => b.id === buyerId);
+  const buyerName = buyerObj ? buyerObj.name : 'Unknown';
+
+  const items = [];
+  document.querySelectorAll('.order-item-row').forEach(rowDiv => {
+    const catId = rowDiv.querySelector('.prod-select')?.value;
+    const catObj = state.catalog.find(c => c.id === catId);
+    if (catObj) {
+      const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
+      const sellingPrice = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
+      if (qty > 0) {
+        items.push({
+          productId: catObj.id,
+          product: catObj.name,
+          weight: catObj.weight,
+          qty,
+          wholesalePrice: catObj.wholesalePrice,
+          sellingPrice,
+          amount: qty * sellingPrice
+        });
+      }
+    }
+  });
+
+  if (items.length === 0) {
+    showToast('Please add at least one product line item', 'danger');
+    return;
+  }
+
+  const subtotal = items.reduce((acc, item) => acc + item.amount, 0);
+  const shipping = parseFloat(document.getElementById('order-shipping')?.value) || 0;
+  const discount = parseFloat(document.getElementById('order-discount')?.value) || 0;
+  const total = Math.max(0, subtotal + shipping - discount);
+  const notes = document.getElementById('order-notes')?.value.trim() || '';
+
+  const order = {
+    id: generateId('order'),
+    buyerType: state.currentOrderBuyerType,
+    buyerId,
+    buyerName,
+    customerType: state.currentOrderCustomerType,
+    items,
+    subtotal,
+    shipping,
+    discount,
+    total,
+    notes,
+    status: 'New',
+    createdAt: new Date().toISOString()
+  };
+
+  await saveItem('newOrders', order);
+  state.newOrders.unshift(order);
+  closeModal('add-new-order-modal');
+  showToast(`New order for "${buyerName}" saved!`);
+  renderAllViews();
+}
 
 window.confirmDeleteNewOrder = (orderId) => {
   const order = state.newOrders.find(o => o.id === orderId);
   if (!order) return;
 
-  confirmDelete(`Delete new order for "${order.customerName}"?`, async () => {
+  confirmDelete(`Delete new order entry for "${order.buyerName}"?`, async () => {
     await deleteItem('newOrders', orderId);
     state.newOrders = state.newOrders.filter(o => o.id !== orderId);
     showToast('Order entry deleted');
@@ -463,50 +675,93 @@ window.convertToSale = (orderId) => {
   const order = state.newOrders.find(o => o.id === orderId);
   if (!order) return;
 
-  let customerObj = state.customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
-  let buyerType = 'customer';
-
-  if (!customerObj) {
-    let shopObj = state.shops.find(s => s.name.toLowerCase() === order.customerName.toLowerCase());
-    if (shopObj) {
-      buyerType = 'shop';
-      customerObj = shopObj;
-    }
-  }
-
   switchView('sales-view', true, true);
   openNewSaleForm();
 
-  state.currentBuyerType = buyerType;
+  // Set Buyer Type
+  state.currentBuyerType = order.buyerType || 'customer';
   document.querySelectorAll('.buyer-type-btn').forEach(b => {
-    b.classList.toggle('active', b.getAttribute('data-type') === buyerType);
+    b.classList.toggle('active', b.getAttribute('data-type') === state.currentBuyerType);
   });
   populateBuyerDropdown();
 
   const buyerSel = document.getElementById('sale-buyer-select');
-  if (buyerSel && customerObj) {
-    buyerSel.value = customerObj.id;
+  if (buyerSel && order.buyerId) {
+    buyerSel.value = order.buyerId;
   }
 
+  // Set Customer Type (Wholesale / Retail)
+  state.currentCustomerType = order.customerType || 'wholesale';
+  document.querySelectorAll('.cust-type-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-type') === state.currentCustomerType);
+  });
+
+  // Populate Product Line Items
   const rowsContainer = document.getElementById('product-rows-container');
   if (rowsContainer) {
-    const firstRow = rowsContainer.querySelector('.product-item-row');
-    if (firstRow) {
-      const prodSel = firstRow.querySelector('.prod-select');
-      const qtyInput = firstRow.querySelector('.prod-qty');
-      const priceInput = firstRow.querySelector('.prod-price');
+    rowsContainer.innerHTML = '';
+    if (order.items && order.items.length > 0) {
+      order.items.forEach(item => {
+        addProductRow();
+        const lastRow = rowsContainer.lastElementChild;
+        if (lastRow) {
+          const prodSel = lastRow.querySelector('.prod-select');
+          const qtyInput = lastRow.querySelector('.prod-qty');
+          const priceInput = lastRow.querySelector('.prod-price');
 
-      if (prodSel && order.lureId) prodSel.value = order.lureId;
-      if (qtyInput) qtyInput.value = order.quantity;
-      if (priceInput && order.quantity > 0) {
-        priceInput.value = (order.estimatedAmount / order.quantity).toFixed(2);
-      }
-      prodSel?.dispatchEvent(new Event('change'));
+          if (prodSel && item.productId) prodSel.value = item.productId;
+          if (qtyInput) qtyInput.value = item.qty;
+          if (priceInput) priceInput.value = item.sellingPrice;
+
+          calculateRowAmount(lastRow);
+        }
+      });
+    } else {
+      addProductRow();
     }
   }
 
-  showToast(`Order for ${order.customerName} pre-filled in Sales Form!`);
+  const shipInput = document.getElementById('sale-shipping');
+  if (shipInput) shipInput.value = order.shipping || '';
+
+  const discInput = document.getElementById('sale-discount');
+  if (discInput) discInput.value = order.discount || '';
+
+  calculateSaleTotals();
+  showToast(`Order for ${order.buyerName} pre-filled in Sales Form!`);
 };
+
+function renderNewOrdersList() {
+  const homeContainer = document.getElementById('home-new-orders-list-container');
+  const fullContainer = document.getElementById('full-new-orders-list-container');
+
+  const ordersHtml = state.newOrders.length === 0
+    ? `<p style="color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 14px;">No pre-production orders logged yet.</p>`
+    : state.newOrders.map(o => {
+        const itemsSummary = (o.items || []).map(i => `${i.product} ${i.weight} × ${i.qty} pcs`).join(', ') || `${o.lureName || 'Lures'} × ${o.quantity || 1} pcs`;
+
+        return `
+          <div class="list-item">
+            <div class="list-item-header">
+              <span class="list-item-title">📋 ${escapeHTML(o.buyerName || o.customerName)} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHTML((o.buyerType || 'customer').toUpperCase())})</span></span>
+              <span class="badge badge-info">₹${(o.total || o.estimatedAmount || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div class="list-item-sub">
+              Type: <strong>${(o.customerType || 'wholesale').toUpperCase()}</strong> • Items: <strong>${escapeHTML(itemsSummary)}</strong><br>
+              ${o.notes ? `Note: <em>${escapeHTML(o.notes)}</em><br>` : ''}
+              <span style="font-size:0.7rem; color:var(--text-muted);">Logged: ${new Date(o.createdAt).toLocaleDateString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+              <button class="btn btn-primary btn-sm" onclick="window.convertToSale('${o.id}')">⚡ Convert to Completed Sale</button>
+              <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteNewOrder('${o.id}')">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+  if (homeContainer) homeContainer.innerHTML = ordersHtml;
+  if (fullContainer) fullContainer.innerHTML = ordersHtml;
+}
 
 window.openUpdatePaymentModal = (saleId) => {
   const sale = state.sales.find(s => s.id === saleId);
@@ -740,29 +995,44 @@ function setupEventListeners() {
     switchView(state.currentView, false, false);
   });
 
-  // New Orders Forms
+  // New Orders Forms (Full Multi-Product Support)
   document.getElementById('open-add-new-order-modal')?.addEventListener('click', window.openNewOrderModal);
   document.getElementById('open-add-new-order-modal-2')?.addEventListener('click', window.openNewOrderModal);
   document.getElementById('add-new-order-form')?.addEventListener('submit', handleAddNewOrder);
-  document.getElementById('edit-new-order-form')?.addEventListener('submit', handleEditNewOrder);
 
-  document.getElementById('order-lure-select')?.addEventListener('change', (e) => {
-    const selectedCat = state.catalog.find(c => c.id === e.target.value);
-    const qty = parseInt(document.getElementById('order-quantity')?.value) || 1;
-    const estInput = document.getElementById('order-estimated-amount');
-    if (selectedCat && estInput) {
-      estInput.value = selectedCat.retailPrice * qty;
+  document.querySelectorAll('.order-buyer-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.order-buyer-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.currentOrderBuyerType = btn.getAttribute('data-type');
+      populateOrderBuyerDropdown();
+    });
+  });
+
+  document.querySelectorAll('.order-cust-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.order-cust-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.currentOrderCustomerType = btn.getAttribute('data-type');
+      updateAllOrderRowPricing();
+      calculateOrderTotals();
+    });
+  });
+
+  document.getElementById('order-quick-add-buyer-btn')?.addEventListener('click', () => {
+    if (state.currentOrderBuyerType === 'shop') {
+      openModal('add-shop-modal');
+    } else {
+      openModal('add-customer-modal');
     }
   });
 
-  document.getElementById('order-quantity')?.addEventListener('input', (e) => {
-    const lureId = document.getElementById('order-lure-select')?.value;
-    const selectedCat = state.catalog.find(c => c.id === lureId);
-    const qty = parseInt(e.target.value) || 1;
-    const estInput = document.getElementById('order-estimated-amount');
-    if (selectedCat && estInput) {
-      estInput.value = selectedCat.retailPrice * qty;
-    }
+  document.getElementById('add-order-product-row-btn')?.addEventListener('click', () => {
+    addOrderProductRow();
+  });
+
+  ['order-shipping', 'order-discount'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', calculateOrderTotals);
   });
 
   // Shops View
@@ -930,113 +1200,6 @@ function setupEventListeners() {
       downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
     }
   });
-}
-
-function populateOrderLureDropdown(selectId) {
-  const select = document.getElementById(selectId);
-  if (!select) return;
-
-  select.innerHTML = state.catalog.map(c => `
-    <option value="${c.id}">${escapeHTML(c.name)} ${escapeHTML(c.weight)} (₹${c.retailPrice})</option>
-  `).join('');
-}
-
-async function handleAddNewOrder(e) {
-  e.preventDefault();
-  const customerName = document.getElementById('order-customer-name')?.value.trim();
-  const phone = document.getElementById('order-phone')?.value.trim() || '';
-  const lureId = document.getElementById('order-lure-select')?.value;
-  const quantity = parseInt(document.getElementById('order-quantity')?.value) || 1;
-  const estimatedAmount = parseFloat(document.getElementById('order-estimated-amount')?.value) || 0;
-  const notes = document.getElementById('order-notes')?.value.trim() || '';
-
-  if (!customerName || !lureId) return;
-
-  const catObj = state.catalog.find(c => c.id === lureId);
-  const lureName = catObj ? `${catObj.name} ${catObj.weight}` : 'Custom Jig';
-
-  const order = {
-    id: generateId('order'),
-    customerName,
-    phone,
-    lureId,
-    lureName,
-    quantity,
-    estimatedAmount,
-    notes,
-    status: 'New',
-    createdAt: new Date().toISOString()
-  };
-
-  await saveItem('newOrders', order);
-  state.newOrders.unshift(order);
-  closeModal('add-new-order-modal');
-  e.target.reset();
-  showToast(`New order for "${customerName}" saved!`);
-  renderAllViews();
-}
-
-async function handleEditNewOrder(e) {
-  e.preventDefault();
-  const orderId = document.getElementById('edit-order-id')?.value;
-  const customerName = document.getElementById('edit-order-customer-name')?.value.trim();
-  const phone = document.getElementById('edit-order-phone')?.value.trim() || '';
-  const lureId = document.getElementById('edit-order-lure-select')?.value;
-  const quantity = parseInt(document.getElementById('edit-order-quantity')?.value) || 1;
-  const estimatedAmount = parseFloat(document.getElementById('edit-order-estimated-amount')?.value) || 0;
-  const notes = document.getElementById('edit-order-notes')?.value.trim() || '';
-
-  if (!customerName || !lureId) return;
-
-  const order = state.newOrders.find(o => o.id === orderId);
-  if (!order) return;
-
-  const catObj = state.catalog.find(c => c.id === lureId);
-
-  order.customerName = customerName;
-  order.phone = phone;
-  order.lureId = lureId;
-  order.lureName = catObj ? `${catObj.name} ${catObj.weight}` : 'Custom Jig';
-  order.quantity = quantity;
-  order.estimatedAmount = estimatedAmount;
-  order.notes = notes;
-  order.updatedAt = new Date().toISOString();
-
-  await saveItem('newOrders', order);
-  closeModal('edit-new-order-modal');
-  showToast(`Order entry for "${customerName}" updated!`);
-  renderAllViews();
-}
-
-function renderNewOrdersList() {
-  const homeContainer = document.getElementById('home-new-orders-list-container');
-  const fullContainer = document.getElementById('full-new-orders-list-container');
-
-  const ordersHtml = state.newOrders.length === 0
-    ? `<p style="color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 14px;">No pre-production orders logged yet.</p>`
-    : state.newOrders.map(o => `
-        <div class="list-item">
-          <div class="list-item-header">
-            <span class="list-item-title">📋 ${escapeHTML(o.customerName)} ${o.phone ? `<span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHTML(o.phone)})</span>` : ''}</span>
-            <span class="badge badge-info">₹${o.estimatedAmount.toLocaleString('en-IN')}</span>
-          </div>
-          <div class="list-item-sub">
-            Product: <strong>${escapeHTML(o.lureName)}</strong> × <strong>${o.quantity} pcs</strong><br>
-            ${o.notes ? `Note: <em>${escapeHTML(o.notes)}</em><br>` : ''}
-            <span style="font-size:0.7rem; color:var(--text-muted);">Logged: ${new Date(o.createdAt).toLocaleDateString()}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-            <button class="btn btn-primary btn-sm" onclick="window.convertToSale('${o.id}')">⚡ Convert to Completed Sale</button>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn btn-secondary btn-sm" onclick="window.openEditNewOrderModal('${o.id}')">✏️ Edit</button>
-              <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteNewOrder('${o.id}')">✕</button>
-            </div>
-          </div>
-        </div>
-      `).join('');
-
-  if (homeContainer) homeContainer.innerHTML = ordersHtml;
-  if (fullContainer) fullContainer.innerHTML = ordersHtml;
 }
 
 function setupDefaultDates() {
@@ -1236,6 +1399,11 @@ async function handleAddShop(e) {
     const buyerSel = document.getElementById('sale-buyer-select');
     if (buyerSel) buyerSel.value = shop.id;
   }
+  if (state.currentOrderBuyerType === 'shop') {
+    populateOrderBuyerDropdown();
+    const orderBuyerSel = document.getElementById('order-buyer-select');
+    if (orderBuyerSel) orderBuyerSel.value = shop.id;
+  }
 
   renderShopsList();
 }
@@ -1342,6 +1510,11 @@ async function handleAddCustomer(e) {
     populateBuyerDropdown();
     const buyerSel = document.getElementById('sale-buyer-select');
     if (buyerSel) buyerSel.value = customer.id;
+  }
+  if (state.currentOrderBuyerType === 'customer') {
+    populateOrderBuyerDropdown();
+    const orderBuyerSel = document.getElementById('order-buyer-select');
+    if (orderBuyerSel) orderBuyerSel.value = customer.id;
   }
 
   renderCustomersList();
@@ -1574,7 +1747,7 @@ function updateAllProductRowPricing() {
 
 function calculateSaleTotals() {
   let subtotal = 0;
-  document.querySelectorAll('.product-item-row').forEach(rowDiv => {
+  document.querySelectorAll('#product-rows-container .product-item-row').forEach(rowDiv => {
     const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
     const price = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
     subtotal += qty * price;
@@ -1609,7 +1782,7 @@ async function handleSaveSale() {
   const date = document.getElementById('sale-date')?.value || new Date().toISOString().split('T')[0];
 
   const items = [];
-  document.querySelectorAll('.product-item-row').forEach(rowDiv => {
+  document.querySelectorAll('#product-rows-container .product-item-row').forEach(rowDiv => {
     const catId = rowDiv.querySelector('.prod-select')?.value;
     const catObj = state.catalog.find(c => c.id === catId);
     if (catObj) {
