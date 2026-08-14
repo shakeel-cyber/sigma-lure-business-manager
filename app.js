@@ -34,6 +34,7 @@ const state = {
   currentInvoiceBlob: null,
   currentInvoiceFile: null,
   currentInvoiceFileName: null,
+  currentInvoiceDataUrl: null,
   activeProfile: null, // null | 'shop' | 'customer'
   activeShopId: null,
   activeCustomerId: null,
@@ -374,7 +375,7 @@ window.shareInvoiceAsImage = async (mode = 'share') => {
   const targetEl = document.getElementById('invoice-paper-element');
   if (!targetEl) return;
 
-  showToast('Generating invoice image...', 'info');
+  showToast('Rendering invoice image...', 'info');
 
   try {
     const h2c = await getHtml2Canvas();
@@ -391,36 +392,21 @@ window.shareInvoiceAsImage = async (mode = 'share') => {
     const previewImg = document.getElementById('invoice-preview-img');
     if (previewImg) previewImg.src = dataUrl;
 
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const fileName = `Invoice_${sale.invoiceNo}.png`;
+    const file = new File([blob], fileName, { type: 'image/png' });
 
-      const fileName = `Invoice_${sale.invoiceNo}.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
+    state.currentInvoiceBlob = blob;
+    state.currentInvoiceFile = file;
+    state.currentInvoiceFileName = fileName;
+    state.currentInvoiceDataUrl = dataUrl;
 
-      state.currentInvoiceBlob = blob;
-      state.currentInvoiceFile = file;
-      state.currentInvoiceFileName = fileName;
-
-      if (mode === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: `Invoice #${sale.invoiceNo} - Sigma Lures`,
-            text: `Invoice #${sale.invoiceNo} for ${sale.buyerName}`
-          });
-          showToast('Invoice image shared!');
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-        }
-      }
-
-      if (mode === 'download') {
-        downloadBlob(blob, fileName);
-      } else {
-        openModal('invoice-img-modal');
-      }
-    }, 'image/png');
+    if (mode === 'download') {
+      downloadBlob(blob, fileName);
+    } else {
+      openModal('invoice-img-modal');
+    }
 
   } catch (err) {
     console.error('Invoice image error:', err);
@@ -678,7 +664,6 @@ window.convertToSale = (orderId) => {
   switchView('sales-view', true, true);
   openNewSaleForm();
 
-  // Set Buyer Type
   state.currentBuyerType = order.buyerType || 'customer';
   document.querySelectorAll('.buyer-type-btn').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-type') === state.currentBuyerType);
@@ -690,13 +675,11 @@ window.convertToSale = (orderId) => {
     buyerSel.value = order.buyerId;
   }
 
-  // Set Customer Type (Wholesale / Retail)
   state.currentCustomerType = order.customerType || 'wholesale';
   document.querySelectorAll('.cust-type-btn').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-type') === state.currentCustomerType);
   });
 
-  // Populate Product Line Items
   const rowsContainer = document.getElementById('product-rows-container');
   if (rowsContainer) {
     rowsContainer.innerHTML = '';
@@ -1180,18 +1163,29 @@ function setupEventListeners() {
   document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
   document.getElementById('download-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('download'));
 
-  // Invoice Image Preview Modal buttons
+  // Direct Button Tap inside Invoice Image Preview Modal for synchronous iOS Safari User Gesture
   document.getElementById('execute-native-share-btn')?.addEventListener('click', async () => {
-    if (state.currentInvoiceFile && navigator.canShare && navigator.canShare({ files: [state.currentInvoiceFile] })) {
+    const file = state.currentInvoiceFile;
+    const blob = state.currentInvoiceBlob;
+    const fileName = state.currentInvoiceFileName || 'Invoice.png';
+
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
-          files: [state.currentInvoiceFile],
+          files: [file],
           title: `Invoice - Sigma Lures`,
           text: `Invoice details`
         });
-      } catch (err) {}
-    } else if (state.currentInvoiceBlob) {
-      downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
+        showToast('Invoice image shared!');
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.warn('Native share error:', err);
+      }
+    }
+
+    if (blob) {
+      downloadBlob(blob, fileName);
     }
   });
 
