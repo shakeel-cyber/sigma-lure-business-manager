@@ -3,9 +3,8 @@
  * Caches core application assets while strictly preserving local database integrity.
  */
 
-const CACHE_NAME = 'sigma-lures-v2';
+const CACHE_NAME = 'sigma-lures-v3';
 const ASSETS_TO_CACHE = [
-  './',
   './index.html',
   './styles.css',
   './app.js',
@@ -17,11 +16,17 @@ const ASSETS_TO_CACHE = [
   './apple-touch-icon.png'
 ];
 
-// Install Event - Cache Application Shell
+// Install Event - Cache Application Shell Safely
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of ASSETS_TO_CACHE) {
+        try {
+          await cache.add(asset);
+        } catch (err) {
+          console.warn('Skipped caching asset:', asset);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
@@ -70,7 +75,7 @@ self.addEventListener('fetch', (event) => {
 
         return networkResponse;
       }).catch(() => {
-        if (event.request.headers.get('accept').includes('text/html')) {
+        if (event.request.headers.get('accept')?.includes('text/html')) {
           return caches.match('./index.html');
         }
       });
