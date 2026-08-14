@@ -1,7 +1,7 @@
 /**
  * Sigma Lures — Core Application Logic
  * Mobile-First Offline Business Management
- * Full Back Button, Edit & Delete, Retail & Wholesale Pricing, PNG Invoice Image Generation & Full Multi-Product New Orders Queue
+ * Full Back Button, Edit & Delete, Retail & Wholesale Pricing, Pure HTML5 Canvas Invoice PNG Generation & Multi-Product New Orders Queue
  */
 
 import {
@@ -343,50 +343,226 @@ window.openInvoiceModal = (saleId) => {
   openModal('invoice-modal');
 };
 
-async function getHtml2Canvas() {
-  if (typeof window.html2canvas === 'function') {
-    return window.html2canvas;
-  }
+// PURE HTML5 2D CANVAS INVOICE GENERATOR (100% RELIABLE, ZERO THIRD-PARTY DEPENDENCIES)
+function buildInvoiceCanvas(sale) {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-  try {
-    const res = await fetch('./html2canvas.min.js?v=' + Date.now());
-    const code = await res.text();
-    const fn = new Function('window', 'self', 'globalThis', code + '\nreturn window.html2canvas || self.html2canvas || (typeof module !== "undefined" ? module.exports : null);');
-    const h2c = fn(window, window, window);
-    if (typeof h2c === 'function') {
-      window.html2canvas = h2c;
-      return h2c;
+    const width = 800;
+    const items = sale.items || [];
+    const rowHeight = 38;
+    const baseHeight = 580;
+    const height = baseHeight + (items.length * rowHeight);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    // Border
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(12, 12, width - 24, height - 24);
+
+    const logoImg = new Image();
+    logoImg.onload = () => drawAll();
+    logoImg.onerror = () => drawAll();
+    logoImg.src = 'logo.png';
+
+    function drawAll() {
+      // Top accent bar
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(36, 36, width - 72, 4);
+
+      // Logo
+      try {
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+          ctx.drawImage(logoImg, 36, 52, 54, 54);
+        }
+      } catch (e) {}
+
+      // Brand Title
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.fillText('SIGMA LURES', 104, 78);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '500 13px sans-serif';
+      ctx.fillText('Handmade Premium Fishing Lures', 104, 98);
+
+      // Invoice Meta (Top Right)
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('INVOICE', width - 36, 76);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(`#${sale.invoiceNo}`, width - 36, 96);
+      ctx.fillText(`Date: ${sale.date}`, width - 36, 116);
+      ctx.textAlign = 'left';
+
+      // Divider Line
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(36, 134);
+      ctx.lineTo(width - 36, 134);
+      ctx.stroke();
+
+      // Billed To Section
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('BILLED TO', 36, 162);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(sale.buyerName || 'Valued Customer', 36, 186);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`Buyer Type: ${(sale.buyerType || 'Customer').toUpperCase()} (${(sale.customerType || 'Wholesale').toUpperCase()})`, 36, 206);
+
+      // Items Table Header
+      let y = 236;
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(36, y, width - 72, 36);
+
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('Product', 50, y + 23);
+      ctx.fillText('Weight', 320, y + 23);
+      ctx.fillText('Qty', 440, y + 23);
+      ctx.textAlign = 'right';
+      ctx.fillText('Price (₹)', 600, y + 23);
+      ctx.fillText('Amount (₹)', width - 50, y + 23);
+      ctx.textAlign = 'left';
+
+      y += 36;
+
+      // Table Rows
+      items.forEach((item, index) => {
+        if (index % 2 === 1) {
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(36, y, width - 72, rowHeight);
+        }
+
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '14px sans-serif';
+        ctx.fillText(item.product, 50, y + 24);
+        ctx.fillText(item.weight, 320, y + 24);
+        ctx.fillText(String(item.qty), 445, y + 24);
+
+        ctx.textAlign = 'right';
+        ctx.fillText(`₹${(item.sellingPrice || 0).toLocaleString('en-IN')}`, 600, y + 24);
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText(`₹${(item.amount || 0).toLocaleString('en-IN')}`, width - 50, y + 24);
+        ctx.textAlign = 'left';
+
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.beginPath();
+        ctx.moveTo(36, y + rowHeight);
+        ctx.lineTo(width - 36, y + rowHeight);
+        ctx.stroke();
+
+        y += rowHeight;
+      });
+
+      y += 24;
+
+      // Totals Box
+      const boxWidth = 340;
+      const boxX = width - 36 - boxWidth;
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(boxX, y, boxWidth, 190);
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(boxX, y, boxWidth, 190);
+
+      let ty = y + 28;
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('Subtotal:', boxX + 16, ty);
+      ctx.textAlign = 'right';
+      ctx.fillText(`₹${(sale.subtotal || 0).toLocaleString('en-IN')}`, width - 52, ty);
+      ctx.textAlign = 'left';
+      ty += 24;
+
+      if (sale.shipping > 0) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('Shipping:', boxX + 16, ty);
+        ctx.textAlign = 'right';
+        ctx.fillText(`+₹${(sale.shipping || 0).toLocaleString('en-IN')}`, width - 52, ty);
+        ctx.textAlign = 'left';
+        ty += 24;
+      }
+
+      if (sale.discount > 0) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('Discount:', boxX + 16, ty);
+        ctx.textAlign = 'right';
+        ctx.fillText(`-₹${(sale.discount || 0).toLocaleString('en-IN')}`, width - 52, ty);
+        ctx.textAlign = 'left';
+        ty += 24;
+      }
+
+      // Divider inside totals
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.moveTo(boxX + 16, ty - 6);
+      ctx.lineTo(width - 52, ty - 6);
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('Final Total:', boxX + 16, ty + 12);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#0284c7';
+      ctx.fillText(`₹${(sale.total || 0).toLocaleString('en-IN')}`, width - 52, ty + 12);
+      ctx.textAlign = 'left';
+      ty += 32;
+
+      ctx.fillStyle = '#16a34a';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('Amount Paid:', boxX + 16, ty + 8);
+      ctx.textAlign = 'right';
+      ctx.fillText(`₹${(sale.paid || 0).toLocaleString('en-IN')}`, width - 52, ty + 8);
+      ctx.textAlign = 'left';
+      ty += 24;
+
+      ctx.fillStyle = '#dc2626';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('Pending Amount:', boxX + 16, ty + 8);
+      ctx.textAlign = 'right';
+      ctx.fillText(`₹${(sale.pending || 0).toLocaleString('en-IN')}`, width - 52, ty + 8);
+      ctx.textAlign = 'left';
+
+      // Footer
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '500 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Thank you for your business! — Sigma Lures Handmade Premium Fishing Jigs', width / 2, height - 32);
+
+      resolve(canvas);
     }
-  } catch (e) {
-    console.error('Failed dynamic execution of html2canvas:', e);
-  }
-
-  if (typeof html2canvas === 'function') {
-    return html2canvas;
-  }
-
-  throw new Error('Image renderer library not loaded');
+  });
 }
 
 window.shareInvoiceAsImage = async (mode = 'share') => {
   const sale = state.currentInvoiceSale;
   if (!sale) return;
 
-  const targetEl = document.getElementById('invoice-paper-element');
-  if (!targetEl) return;
-
-  showToast('Rendering invoice image...', 'info');
+  showToast('Generating invoice image...', 'info');
 
   try {
-    const h2c = await getHtml2Canvas();
-
-    const canvas = await h2c(targetEl, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false
-    });
+    const canvas = await buildInvoiceCanvas(sale);
 
     const dataUrl = canvas.toDataURL('image/png');
     const previewImg = document.getElementById('invoice-preview-img');
