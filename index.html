@@ -115,14 +115,15 @@
         <div id="home-new-orders-list-container"></div>
       </div>
 
-      <!-- Quick Action Buttons -->
+      <!-- Quick Action Buttons Grid (Custom Rearranged Order) -->
       <div class="card-title">Business Hub</div>
       <div class="dashboard-grid">
-        <button class="dash-btn" data-target="new-orders-view">
-          <div class="dash-btn-icon">📋</div>
+        <!-- Row 1: Purchases | Sales Tracker -->
+        <button class="dash-btn" data-target="purchases-view">
+          <div class="dash-btn-icon">🧾</div>
           <div>
-            <div class="dash-btn-title">New Orders</div>
-            <div class="dash-btn-subtitle">Incoming pre-orders</div>
+            <div class="dash-btn-title">Purchases</div>
+            <div class="dash-btn-subtitle">Log material costs</div>
           </div>
         </button>
 
@@ -130,14 +131,15 @@
           <div class="dash-btn-icon">💰</div>
           <div>
             <div class="dash-btn-title">Sales Tracker</div>
-            <div class="dash-btn-subtitle">Completed orders</div>
+            <div class="dash-btn-subtitle">Create & view sales</div>
           </div>
         </button>
 
+        <!-- Row 2: Shop | Customer -->
         <button class="dash-btn" data-target="shops-view">
           <div class="dash-btn-icon">🏪</div>
           <div>
-            <div class="dash-btn-title">Shops</div>
+            <div class="dash-btn-title">Shop</div>
             <div class="dash-btn-subtitle">Manage retail shops</div>
           </div>
         </button>
@@ -145,24 +147,17 @@
         <button class="dash-btn" data-target="customers-view">
           <div class="dash-btn-icon">👤</div>
           <div>
-            <div class="dash-btn-title">Customers</div>
+            <div class="dash-btn-title">Customer</div>
             <div class="dash-btn-subtitle">Manage direct buyers</div>
           </div>
         </button>
 
+        <!-- Row 3: Pending Payment | Planned Items -->
         <button class="dash-btn" data-target="pending-view">
           <div class="dash-btn-icon">💳</div>
           <div>
-            <div class="dash-btn-title">Pending Payments</div>
+            <div class="dash-btn-title">Pending Payment</div>
             <div class="dash-btn-subtitle">Collect unpaid dues</div>
-          </div>
-        </button>
-
-        <button class="dash-btn" data-target="purchases-view">
-          <div class="dash-btn-icon">🧾</div>
-          <div>
-            <div class="dash-btn-title">Purchases</div>
-            <div class="dash-btn-subtitle">Log material costs</div>
           </div>
         </button>
 
@@ -174,14 +169,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="invoices-view">
-          <div class="dash-btn-icon">📄</div>
-          <div>
-            <div class="dash-btn-title">Invoices</div>
-            <div class="dash-btn-subtitle">Generate & share image</div>
-          </div>
-        </button>
-
+        <!-- Row 4: Reports | Invoice -->
         <button class="dash-btn" data-target="reports-view">
           <div class="dash-btn-icon">📊</div>
           <div>
@@ -190,11 +178,28 @@
           </div>
         </button>
 
+        <button class="dash-btn" data-target="invoices-view">
+          <div class="dash-btn-icon">📄</div>
+          <div>
+            <div class="dash-btn-title">Invoice</div>
+            <div class="dash-btn-subtitle">Generate & share image</div>
+          </div>
+        </button>
+
+        <!-- Row 5: Backup | New Order -->
         <button class="dash-btn" data-target="backup-view">
           <div class="dash-btn-icon">💾</div>
           <div>
             <div class="dash-btn-title">Backup</div>
-            <div class="dash-btn-subtitle">Data backup & restore</div>
+            <div class="dash-btn-subtitle">Export data & restore</div>
+          </div>
+        </button>
+
+        <button class="dash-btn" data-target="new-orders-view">
+          <div class="dash-btn-icon">📋</div>
+          <div>
+            <div class="dash-btn-title">New Order</div>
+            <div class="dash-btn-subtitle">Incoming pre-orders</div>
           </div>
         </button>
       </div>
@@ -637,7 +642,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Additional Custom Notes</label>
-          <textarea id="order-notes" class="form-textarea" rows="3" placeholder="e.g. Custom tiger pattern, assist hook color preference, target date..."></textarea>
+          <textarea id="order-notes" class="form-textarea" rows="3" placeholder="e.g. Custom tiger pattern, assist hook color preference, target delivery date..."></textarea>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Save New Order</button>
       </form>
@@ -888,7 +893,7 @@
     </div>
   </div>
 
-  <!-- Invoice View / Print / Image Share Modal -->
+  <!-- Invoice HTML Modal -->
   <div id="invoice-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 600px;">
       <div class="modal-header">
@@ -902,10 +907,33 @@
 
       <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
         <div style="display: flex; gap: 8px;">
-          <button class="btn btn-primary btn-block" id="share-invoice-img-btn">📱 Share Invoice Image</button>
+          <button class="btn btn-primary btn-block" id="share-invoice-img-btn">📱 Generate & Share Image</button>
           <button class="btn btn-secondary" id="download-invoice-img-btn" style="white-space: nowrap;">💾 Save Image</button>
         </div>
-        <button class="btn btn-secondary btn-block" onclick="window.print();">🖨️ Print</button>
+        <button class="btn btn-secondary btn-block" onclick="window.print();">🖨️ Print Invoice</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVOICE IMAGE PREVIEW & SHARE SHEET MODAL -->
+  <div id="invoice-img-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 550px; text-align: center;">
+      <div class="modal-header">
+        <div class="modal-title">Invoice Image Ready</div>
+        <button class="modal-close close-modal-btn">✕</button>
+      </div>
+      
+      <div style="margin-bottom: 12px;">
+        <img id="invoice-preview-img" alt="Invoice Image" style="width: 100%; max-height: 55vh; object-fit: contain; border-radius: 8px; border: 1px solid var(--border-color); background: #ffffff;">
+      </div>
+
+      <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 14px;">
+        💡 <strong>iPhone / Android Tip:</strong> Tap below to share via WhatsApp, or <strong>Tap & Hold</strong> the image to Copy or Save to Photos directly!
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button class="btn btn-primary btn-block" id="execute-native-share-btn">📱 Send / Share Image</button>
+        <button class="btn btn-secondary btn-block" id="execute-image-download-btn">💾 Save Image to Device</button>
       </div>
     </div>
   </div>

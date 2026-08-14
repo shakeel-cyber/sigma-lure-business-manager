@@ -29,13 +29,16 @@ const state = {
   currentCustomerType: 'wholesale', // 'wholesale' | 'retail'
   pendingDeleteAction: null,
   currentInvoiceSale: null,
+  currentInvoiceBlob: null,
+  currentInvoiceFile: null,
+  currentInvoiceFileName: null,
   activeProfile: null, // null | 'shop' | 'customer'
   activeShopId: null,
   activeCustomerId: null,
   activeModal: null // id of open modal
 };
 
-// EXPOSE GLOBAL WINDOW HANDLERS IMMEDIATELY SO DYNAMIC ONCLICK BUTTONS ALWAYS WORK
+// EXPOSE GLOBAL WINDOW HANDLERS IMMEDIATELY
 window.viewShopProfile = (shopId) => {
   const shop = state.shops.find(s => s.id === shopId);
   if (!shop) return;
@@ -217,7 +220,7 @@ window.confirmDeleteCustomer = (custId) => {
   const customer = state.customers.find(c => c.id === targetId);
   if (!customer) return;
 
-  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === custId);
+  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === targetId);
   let msg = `Delete customer "${customer.name}" permanently?`;
   if (custSales.length > 0) {
     msg += ` (${custSales.length} historical purchase records for this customer will remain in past sales logs).`;
@@ -354,18 +357,24 @@ window.shareInvoiceAsImage = async (mode = 'share') => {
     const canvas = await html2canvas(targetEl, {
       scale: 2,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false
     });
 
+    const dataUrl = canvas.toDataURL('image/png');
+    const previewImg = document.getElementById('invoice-preview-img');
+    if (previewImg) previewImg.src = dataUrl;
+
     canvas.toBlob(async (blob) => {
-      if (!blob) {
-        showToast('Failed to create image blob', 'danger');
-        return;
-      }
+      if (!blob) return;
 
       const fileName = `Invoice_${sale.invoiceNo}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
+
+      state.currentInvoiceBlob = blob;
+      state.currentInvoiceFile = file;
+      state.currentInvoiceFileName = fileName;
 
       if (mode === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
@@ -374,14 +383,17 @@ window.shareInvoiceAsImage = async (mode = 'share') => {
             title: `Invoice #${sale.invoiceNo} - Sigma Lures`,
             text: `Invoice #${sale.invoiceNo} for ${sale.buyerName}`
           });
-          showToast('Invoice image shared successfully!');
-        } catch (shareErr) {
-          if (shareErr.name !== 'AbortError') {
-            downloadBlob(blob, fileName);
-          }
+          showToast('Invoice image shared!');
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
         }
-      } else {
+      }
+
+      if (mode === 'download') {
         downloadBlob(blob, fileName);
+      } else {
+        openModal('invoice-img-modal');
       }
     }, 'image/png');
 
@@ -398,7 +410,7 @@ function downloadBlob(blob, fileName) {
   a.download = fileName;
   a.click();
   URL.revokeObjectURL(url);
-  showToast(`Invoice saved as ${fileName}`);
+  showToast(`Saved invoice image as ${fileName}`);
 }
 
 window.openNewOrderModal = () => {
@@ -451,7 +463,6 @@ window.convertToSale = (orderId) => {
   const order = state.newOrders.find(o => o.id === orderId);
   if (!order) return;
 
-  // Check or add customer to state if not exists
   let customerObj = state.customers.find(c => c.name.toLowerCase() === order.customerName.toLowerCase());
   let buyerType = 'customer';
 
@@ -477,7 +488,6 @@ window.convertToSale = (orderId) => {
     buyerSel.value = customerObj.id;
   }
 
-  // Populate first product row if cat item exists
   const rowsContainer = document.getElementById('product-rows-container');
   if (rowsContainer) {
     const firstRow = rowsContainer.querySelector('.product-item-row');
@@ -899,6 +909,27 @@ function setupEventListeners() {
   // Invoice Image Handlers
   document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
   document.getElementById('download-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('download'));
+
+  // Invoice Image Preview Modal buttons
+  document.getElementById('execute-native-share-btn')?.addEventListener('click', async () => {
+    if (state.currentInvoiceFile && navigator.canShare && navigator.canShare({ files: [state.currentInvoiceFile] })) {
+      try {
+        await navigator.share({
+          files: [state.currentInvoiceFile],
+          title: `Invoice - Sigma Lures`,
+          text: `Invoice details`
+        });
+      } catch (err) {}
+    } else if (state.currentInvoiceBlob) {
+      downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
+    }
+  });
+
+  document.getElementById('execute-image-download-btn')?.addEventListener('click', () => {
+    if (state.currentInvoiceBlob) {
+      downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
+    }
+  });
 }
 
 function populateOrderLureDropdown(selectId) {
