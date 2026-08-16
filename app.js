@@ -1,7 +1,7 @@
 /**
  * Sigma Lures — Core Application Logic
  * Mobile-First Offline Business Management
- * Full Back Button, Edit & Delete, Retail & Wholesale Pricing, Pure HTML5 Canvas Invoice PNG Generation & Multi-Product New Orders Queue
+ * Full Back Button, Edit & Delete Shop/Customer Features, Wholesale & Retail Catalogue Prices & Stealth Theme
  */
 
 import {
@@ -24,24 +24,96 @@ const state = {
   purchases: [],
   plannedPurchases: [],
   catalog: [],
-  newOrders: [],
   currentBuyerType: 'shop', // 'shop' | 'customer'
   currentCustomerType: 'wholesale', // 'wholesale' | 'retail'
-  currentOrderBuyerType: 'shop', // 'shop' | 'customer' for new order modal
-  currentOrderCustomerType: 'wholesale', // 'wholesale' | 'retail' for new order modal
   pendingDeleteAction: null,
   currentInvoiceSale: null,
-  currentInvoiceBlob: null,
-  currentInvoiceFile: null,
-  currentInvoiceFileName: null,
-  currentInvoiceDataUrl: null,
   activeProfile: null, // null | 'shop' | 'customer'
   activeShopId: null,
   activeCustomerId: null,
   activeModal: null // id of open modal
 };
 
-// EXPOSE GLOBAL WINDOW HANDLERS IMMEDIATELY
+// EXPOSE GLOBAL WINDOW HANDLERS IMMEDIATELY SO DYNAMIC ONCLICK BUTTONS ALWAYS WORK
+window.toggleOrderExpand = (saleId) => {
+  const el = document.getElementById(`order-expanded-${saleId}`);
+  if (el) {
+    el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+  }
+};
+
+function renderOrderTableRowHtml(s) {
+  const itemsHtml = (s.items || []).map(item => {
+    const catItem = state.catalog.find(c => c.name === item.product && c.weight === item.weight);
+    const estPrice = catItem ? (s.customerType === 'wholesale' ? catItem.wholesalePrice : catItem.retailPrice) : item.sellingPrice;
+    return `
+      <tr>
+        <td><strong>${escapeHTML(item.product)}</strong></td>
+        <td style="text-align:center;">${escapeHTML(item.weight)}</td>
+        <td style="text-align:center;">${item.qty}</td>
+        <td style="text-align:right;">₹${item.sellingPrice}</td>
+        <td style="text-align:right; font-weight:700;">₹${item.amount.toLocaleString('en-IN')}</td>
+        <td style="text-align:right; color:var(--text-muted); font-size:0.78rem;">₹${estPrice}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <tr class="order-row-clickable" onclick="window.toggleOrderExpand('${s.id}')">
+      <td>${s.date}</td>
+      <td><strong>${s.invoiceNo || s.id.substring(0, 8)}</strong></td>
+      <td style="font-weight:700;">₹${s.total.toLocaleString('en-IN')}</td>
+      <td style="color: var(--success);">₹${s.paid.toLocaleString('en-IN')}</td>
+      <td style="color: var(--danger);">₹${s.pending.toLocaleString('en-IN')}</td>
+      <td>${getStatusBadgeHTML(s.status)}</td>
+      <td style="text-align:center; color: var(--accent); font-weight: 700; font-size:0.85rem;">▼ View</td>
+    </tr>
+    <tr id="order-expanded-${s.id}" style="display: none; background: rgba(0, 0, 0, 0.25);">
+      <td colspan="7" style="padding: 12px 14px;">
+        <div class="order-expand-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
+            <strong style="color: var(--accent);">Order #${s.invoiceNo || s.id.substring(0, 8)} Details</strong>
+            <span style="font-size:0.78rem; color:var(--text-muted);">Customer Type: <strong>${(s.customerType || 'wholesale').toUpperCase()}</strong></span>
+          </div>
+
+          <table class="inner-details-table">
+            <thead>
+              <tr>
+                <th style="text-align:left;">Lure Name</th>
+                <th style="text-align:center;">Weight</th>
+                <th style="text-align:center;">Qty</th>
+                <th style="text-align:right;">Unit Price</th>
+                <th style="text-align:right;">Line Total</th>
+                <th style="text-align:right;">Est. Catalog Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="font-size:0.84rem; display:flex; flex-wrap:wrap; gap:12px; margin: 10px 0; padding: 8px 12px; background: var(--bg-input); border-radius:6px; border:1px solid var(--border-color);">
+            <div>Subtotal: <strong>₹${(s.subtotal || 0).toLocaleString('en-IN')}</strong></div>
+            <div>Shipping: <strong>₹${s.shipping || 0}</strong></div>
+            <div>Discount: <strong>₹${s.discount || 0}</strong></div>
+            <div>Free Jigs: <strong>${s.freeQty || 0} pcs</strong></div>
+            <div>Final Total: <strong style="color:var(--accent);">₹${s.total.toLocaleString('en-IN')}</strong></div>
+            <div>Paid: <strong style="color:var(--success);">₹${s.paid.toLocaleString('en-IN')}</strong></div>
+            <div>Pending: <strong style="color:var(--danger);">₹${s.pending.toLocaleString('en-IN')}</strong></div>
+          </div>
+
+          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.openEditSaleModal('${s.id}')">✏️ Edit Order</button>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.openUpdatePaymentModal('${s.id}')">💳 Update Pay</button>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); window.openInvoiceModal('${s.id}')">📄 Invoice</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); window.confirmDeleteSale('${s.id}')">✕ Delete</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
 window.viewShopProfile = (shopId) => {
   const shop = state.shops.find(s => s.id === shopId);
   if (!shop) return;
@@ -77,18 +149,9 @@ window.viewShopProfile = (shopId) => {
   const tbody = document.getElementById('shop-history-tbody');
   if (tbody) {
     if (shopSales.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
     } else {
-      tbody.innerHTML = shopSales.map(s => `
-        <tr style="cursor: pointer;" onclick="window.openInvoiceModal('${s.id}')">
-          <td>${s.date}</td>
-          <td>${s.invoiceNo || s.id.substring(0, 8)}</td>
-          <td>₹${s.total.toLocaleString('en-IN')}</td>
-          <td style="color: var(--success);">₹${s.paid.toLocaleString('en-IN')}</td>
-          <td style="color: var(--danger);">₹${s.pending.toLocaleString('en-IN')}</td>
-          <td>${getStatusBadgeHTML(s.status)}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = shopSales.map(s => renderOrderTableRowHtml(s)).join('');
     }
   }
 
@@ -131,18 +194,9 @@ window.viewCustomerProfile = (custId) => {
   const tbody = document.getElementById('cust-history-tbody');
   if (tbody) {
     if (custSales.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
     } else {
-      tbody.innerHTML = custSales.map(s => `
-        <tr style="cursor: pointer;" onclick="window.openInvoiceModal('${s.id}')">
-          <td>${s.date}</td>
-          <td>${s.invoiceNo || s.id.substring(0, 8)}</td>
-          <td>₹${s.total.toLocaleString('en-IN')}</td>
-          <td style="color: var(--success);">₹${s.paid.toLocaleString('en-IN')}</td>
-          <td style="color: var(--danger);">₹${s.pending.toLocaleString('en-IN')}</td>
-          <td>${getStatusBadgeHTML(s.status)}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = custSales.map(s => renderOrderTableRowHtml(s)).join('');
     }
   }
 
@@ -223,7 +277,7 @@ window.confirmDeleteCustomer = (custId) => {
   const customer = state.customers.find(c => c.id === targetId);
   if (!customer) return;
 
-  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === custId);
+  const custSales = state.sales.filter(s => s.buyerType === 'customer' && s.buyerId === targetId);
   let msg = `Delete customer "${customer.name}" permanently?`;
   if (custSales.length > 0) {
     msg += ` (${custSales.length} historical purchase records for this customer will remain in past sales logs).`;
@@ -265,17 +319,14 @@ window.openInvoiceModal = (saleId) => {
   `).join('');
 
   printArea.innerHTML = `
-    <div class="invoice-paper" id="invoice-paper-element">
+    <div class="invoice-paper">
       <div class="invoice-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <img src="logo.png" alt="Sigma Logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 6px; background: #000; border: 1px solid #cbd5e1;">
-          <div>
-            <div class="invoice-brand">SIGMA LURES</div>
-            <div style="font-size:0.75rem; color:#475569; font-weight: 500;">Handmade Premium Fishing Lures</div>
-          </div>
+        <div>
+          <div class="invoice-brand">SIGMA LURES</div>
+          <div style="font-size:0.8rem; color:#475569;">Handmade Premium Fishing Lures</div>
         </div>
         <div class="invoice-meta">
-          <strong style="color: #0f172a; font-size: 0.95rem;">INVOICE</strong><br>
+          <strong>INVOICE</strong><br>
           #${sale.invoiceNo}<br>
           Date: ${sale.date}
         </div>
@@ -284,7 +335,7 @@ window.openInvoiceModal = (saleId) => {
       <div class="invoice-details-grid">
         <div>
           <strong style="font-size:0.75rem; color:#64748b; text-transform:uppercase;">Billed To</strong><br>
-          <strong style="font-size:1.05rem; color:#0f172a;">${escapeHTML(sale.buyerName)}</strong><br>
+          <strong style="font-size:1.05rem;">${escapeHTML(sale.buyerName)}</strong><br>
           <span style="font-size:0.8rem; color:#475569;">Buyer Type: ${sale.buyerType.toUpperCase()} (${sale.customerType.toUpperCase()})</span>
         </div>
       </div>
@@ -328,11 +379,11 @@ window.openInvoiceModal = (saleId) => {
           <span>Final Total:</span>
           <span>₹${sale.total.toLocaleString('en-IN')}</span>
         </div>
-        <div class="invoice-total-row" style="margin-top:6px; color:#16a34a; font-weight:700;">
+        <div class="invoice-total-row" style="margin-top:6px; color:#16a34a; font-weight:600;">
           <span>Amount Paid:</span>
           <span>₹${sale.paid.toLocaleString('en-IN')}</span>
         </div>
-        <div class="invoice-total-row" style="color:#dc2626; font-weight:700;">
+        <div class="invoice-total-row" style="color:#dc2626; font-weight:600;">
           <span>Pending Amount:</span>
           <span>₹${sale.pending.toLocaleString('en-IN')}</span>
         </div>
@@ -342,585 +393,6 @@ window.openInvoiceModal = (saleId) => {
 
   openModal('invoice-modal');
 };
-
-// PURE HTML5 2D CANVAS INVOICE GENERATOR (100% RELIABLE, ZERO THIRD-PARTY DEPENDENCIES)
-function buildInvoiceCanvas(sale) {
-  return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    const width = 800;
-    const items = sale.items || [];
-    const rowHeight = 38;
-    const baseHeight = 580;
-    const height = baseHeight + (items.length * rowHeight);
-
-    canvas.width = width;
-    canvas.height = height;
-
-    // Background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-
-    // Border
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(12, 12, width - 24, height - 24);
-
-    const logoImg = new Image();
-    logoImg.onload = () => drawAll();
-    logoImg.onerror = () => drawAll();
-    logoImg.src = 'logo.png';
-
-    function drawAll() {
-      // Top accent bar
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(36, 36, width - 72, 4);
-
-      // Logo
-      try {
-        if (logoImg.complete && logoImg.naturalWidth > 0) {
-          ctx.drawImage(logoImg, 36, 52, 54, 54);
-        }
-      } catch (e) {}
-
-      // Brand Title
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 26px sans-serif';
-      ctx.fillText('SIGMA LURES', 104, 78);
-
-      ctx.fillStyle = '#64748b';
-      ctx.font = '500 13px sans-serif';
-      ctx.fillText('Handmade Premium Fishing Lures', 104, 98);
-
-      // Invoice Meta (Top Right)
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 22px sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText('INVOICE', width - 36, 76);
-
-      ctx.fillStyle = '#475569';
-      ctx.font = '14px sans-serif';
-      ctx.fillText(`#${sale.invoiceNo}`, width - 36, 96);
-      ctx.fillText(`Date: ${sale.date}`, width - 36, 116);
-      ctx.textAlign = 'left';
-
-      // Divider Line
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(36, 134);
-      ctx.lineTo(width - 36, 134);
-      ctx.stroke();
-
-      // Billed To Section
-      ctx.fillStyle = '#64748b';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('BILLED TO', 36, 162);
-
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText(sale.buyerName || 'Valued Customer', 36, 186);
-
-      ctx.fillStyle = '#475569';
-      ctx.font = '13px sans-serif';
-      ctx.fillText(`Buyer Type: ${(sale.buyerType || 'Customer').toUpperCase()} (${(sale.customerType || 'Wholesale').toUpperCase()})`, 36, 206);
-
-      // Items Table Header
-      let y = 236;
-      ctx.fillStyle = '#f1f5f9';
-      ctx.fillRect(36, y, width - 72, 36);
-
-      ctx.fillStyle = '#334155';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('Product', 50, y + 23);
-      ctx.fillText('Weight', 320, y + 23);
-      ctx.fillText('Qty', 440, y + 23);
-      ctx.textAlign = 'right';
-      ctx.fillText('Price (₹)', 600, y + 23);
-      ctx.fillText('Amount (₹)', width - 50, y + 23);
-      ctx.textAlign = 'left';
-
-      y += 36;
-
-      // Table Rows
-      items.forEach((item, index) => {
-        if (index % 2 === 1) {
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillRect(36, y, width - 72, rowHeight);
-        }
-
-        ctx.fillStyle = '#0f172a';
-        ctx.font = '14px sans-serif';
-        ctx.fillText(item.product, 50, y + 24);
-        ctx.fillText(item.weight, 320, y + 24);
-        ctx.fillText(String(item.qty), 445, y + 24);
-
-        ctx.textAlign = 'right';
-        ctx.fillText(`₹${(item.sellingPrice || 0).toLocaleString('en-IN')}`, 600, y + 24);
-        ctx.font = 'bold 14px sans-serif';
-        ctx.fillText(`₹${(item.amount || 0).toLocaleString('en-IN')}`, width - 50, y + 24);
-        ctx.textAlign = 'left';
-
-        ctx.strokeStyle = '#f1f5f9';
-        ctx.beginPath();
-        ctx.moveTo(36, y + rowHeight);
-        ctx.lineTo(width - 36, y + rowHeight);
-        ctx.stroke();
-
-        y += rowHeight;
-      });
-
-      y += 24;
-
-      // Totals Box
-      const boxWidth = 340;
-      const boxX = width - 36 - boxWidth;
-
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(boxX, y, boxWidth, 190);
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(boxX, y, boxWidth, 190);
-
-      let ty = y + 28;
-
-      ctx.fillStyle = '#475569';
-      ctx.font = '13px sans-serif';
-      ctx.fillText('Subtotal:', boxX + 16, ty);
-      ctx.textAlign = 'right';
-      ctx.fillText(`₹${(sale.subtotal || 0).toLocaleString('en-IN')}`, width - 52, ty);
-      ctx.textAlign = 'left';
-      ty += 24;
-
-      if (sale.shipping > 0) {
-        ctx.fillStyle = '#475569';
-        ctx.font = '13px sans-serif';
-        ctx.fillText('Shipping:', boxX + 16, ty);
-        ctx.textAlign = 'right';
-        ctx.fillText(`+₹${(sale.shipping || 0).toLocaleString('en-IN')}`, width - 52, ty);
-        ctx.textAlign = 'left';
-        ty += 24;
-      }
-
-      if (sale.discount > 0) {
-        ctx.fillStyle = '#475569';
-        ctx.font = '13px sans-serif';
-        ctx.fillText('Discount:', boxX + 16, ty);
-        ctx.textAlign = 'right';
-        ctx.fillText(`-₹${(sale.discount || 0).toLocaleString('en-IN')}`, width - 52, ty);
-        ctx.textAlign = 'left';
-        ty += 24;
-      }
-
-      // Divider inside totals
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.beginPath();
-      ctx.moveTo(boxX + 16, ty - 6);
-      ctx.lineTo(width - 52, ty - 6);
-      ctx.stroke();
-
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.fillText('Final Total:', boxX + 16, ty + 12);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#0284c7';
-      ctx.fillText(`₹${(sale.total || 0).toLocaleString('en-IN')}`, width - 52, ty + 12);
-      ctx.textAlign = 'left';
-      ty += 32;
-
-      ctx.fillStyle = '#16a34a';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText('Amount Paid:', boxX + 16, ty + 8);
-      ctx.textAlign = 'right';
-      ctx.fillText(`₹${(sale.paid || 0).toLocaleString('en-IN')}`, width - 52, ty + 8);
-      ctx.textAlign = 'left';
-      ty += 24;
-
-      ctx.fillStyle = '#dc2626';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText('Pending Amount:', boxX + 16, ty + 8);
-      ctx.textAlign = 'right';
-      ctx.fillText(`₹${(sale.pending || 0).toLocaleString('en-IN')}`, width - 52, ty + 8);
-      ctx.textAlign = 'left';
-
-      // Footer
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '500 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Thank you for your business! — Sigma Lures Handmade Premium Fishing Jigs', width / 2, height - 32);
-
-      resolve(canvas);
-    }
-  });
-}
-
-window.shareInvoiceAsImage = async (mode = 'share') => {
-  const sale = state.currentInvoiceSale;
-  if (!sale) return;
-
-  showToast('Generating invoice image...', 'info');
-
-  try {
-    const canvas = await buildInvoiceCanvas(sale);
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const previewImg = document.getElementById('invoice-preview-img');
-    if (previewImg) previewImg.src = dataUrl;
-
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
-    const fileName = `Invoice_${sale.invoiceNo}.png`;
-    const file = new File([blob], fileName, { type: 'image/png' });
-
-    state.currentInvoiceBlob = blob;
-    state.currentInvoiceFile = file;
-    state.currentInvoiceFileName = fileName;
-    state.currentInvoiceDataUrl = dataUrl;
-
-    if (mode === 'download') {
-      downloadBlob(blob, fileName);
-    } else {
-      openModal('invoice-img-modal');
-    }
-
-  } catch (err) {
-    console.error('Invoice image error:', err);
-    showToast('Image export error: ' + err.message, 'danger');
-  }
-};
-
-function downloadBlob(blob, fileName) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast(`Saved invoice image as ${fileName}`);
-}
-
-// NEW ORDERS LOGIC (FULL MULTI-PRODUCT & SALES MATCHING DETAILS)
-window.openNewOrderModal = () => {
-  populateOrderBuyerDropdown();
-
-  const rowsContainer = document.getElementById('order-product-rows-container');
-  if (rowsContainer) rowsContainer.innerHTML = '';
-
-  const shipInput = document.getElementById('order-shipping');
-  if (shipInput) shipInput.value = '';
-  const discInput = document.getElementById('order-discount');
-  if (discInput) discInput.value = '';
-  const notesInput = document.getElementById('order-notes');
-  if (notesInput) notesInput.value = '';
-
-  addOrderProductRow();
-  calculateOrderTotals();
-  openModal('add-new-order-modal');
-};
-
-function populateOrderBuyerDropdown() {
-  const select = document.getElementById('order-buyer-select');
-  if (!select) return;
-
-  const list = state.currentOrderBuyerType === 'shop' ? state.shops : state.customers;
-
-  if (list.length === 0) {
-    select.innerHTML = `<option value="">No ${state.currentOrderBuyerType}s available - Please add one</option>`;
-    return;
-  }
-
-  select.innerHTML = list.map(item => `
-    <option value="${item.id}">${escapeHTML(item.name)}</option>
-  `).join('');
-}
-
-function addOrderProductRow() {
-  const container = document.getElementById('order-product-rows-container');
-  if (!container) return;
-
-  const rowId = `order_row_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-
-  const div = document.createElement('div');
-  div.className = 'product-item-row order-item-row';
-  div.id = rowId;
-
-  const catOptions = state.catalog.map(cat => `
-    <option value="${cat.id}">${cat.name} ${cat.weight} (W: ₹${cat.wholesalePrice} | R: ₹${cat.retailPrice || cat.wholesalePrice})</option>
-  `).join('');
-
-  div.innerHTML = `
-    <div class="product-row-top">
-      <select class="form-select prod-select" style="flex: 1;">
-        <option value="">-- Select Product --</option>
-        ${catOptions}
-      </select>
-    </div>
-    <div class="product-row-bottom">
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">Qty</label>
-        <input type="number" class="form-input prod-qty" value="1" min="1">
-      </div>
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">Est. Price</label>
-        <input type="number" class="form-input prod-price" placeholder="Price" min="0" step="0.01">
-      </div>
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">Amount</label>
-        <div class="prod-amount" style="font-size: 0.85rem; font-weight:700; padding-top:8px;">₹0</div>
-      </div>
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">&nbsp;</label>
-        <button type="button" class="remove-prod-btn">✕</button>
-      </div>
-    </div>
-  `;
-
-  container.appendChild(div);
-
-  const select = div.querySelector('.prod-select');
-  const qtyInput = div.querySelector('.prod-qty');
-  const priceInput = div.querySelector('.prod-price');
-  const removeBtn = div.querySelector('.remove-prod-btn');
-
-  select?.addEventListener('change', () => {
-    const selectedCat = state.catalog.find(c => c.id === select.value);
-    if (selectedCat && priceInput) {
-      if (state.currentOrderCustomerType === 'wholesale') {
-        priceInput.value = selectedCat.wholesalePrice;
-        priceInput.readOnly = true;
-      } else {
-        priceInput.value = selectedCat.retailPrice || selectedCat.wholesalePrice;
-        priceInput.readOnly = false;
-      }
-    }
-    calculateRowAmount(div);
-    calculateOrderTotals();
-  });
-
-  qtyInput?.addEventListener('input', () => {
-    calculateRowAmount(div);
-    calculateOrderTotals();
-  });
-
-  priceInput?.addEventListener('input', () => {
-    calculateRowAmount(div);
-    calculateOrderTotals();
-  });
-
-  removeBtn?.addEventListener('click', () => {
-    div.remove();
-    calculateOrderTotals();
-  });
-
-  if (state.catalog.length > 0 && select) {
-    select.value = state.catalog[0].id;
-    select.dispatchEvent(new Event('change'));
-  }
-}
-
-function updateAllOrderRowPricing() {
-  document.querySelectorAll('.order-item-row').forEach(rowDiv => {
-    const select = rowDiv.querySelector('.prod-select');
-    const priceInput = rowDiv.querySelector('.prod-price');
-    const selectedCat = state.catalog.find(c => c.id === select?.value);
-
-    if (priceInput && selectedCat) {
-      if (state.currentOrderCustomerType === 'wholesale') {
-        priceInput.readOnly = true;
-        priceInput.value = selectedCat.wholesalePrice;
-      } else {
-        priceInput.readOnly = false;
-        priceInput.value = selectedCat.retailPrice || selectedCat.wholesalePrice;
-      }
-    }
-    calculateRowAmount(rowDiv);
-  });
-}
-
-function calculateOrderTotals() {
-  let subtotal = 0;
-  document.querySelectorAll('.order-item-row').forEach(rowDiv => {
-    const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
-    const price = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
-    subtotal += qty * price;
-  });
-
-  const shipping = parseFloat(document.getElementById('order-shipping')?.value) || 0;
-  const discount = parseFloat(document.getElementById('order-discount')?.value) || 0;
-  const total = Math.max(0, subtotal + shipping - discount);
-
-  setText('order-calc-subtotal', `₹${subtotal.toLocaleString('en-IN')}`);
-  setText('order-calc-total', `₹${total.toLocaleString('en-IN')}`);
-}
-
-async function handleAddNewOrder(e) {
-  e.preventDefault();
-  const buyerId = document.getElementById('order-buyer-select')?.value;
-  if (!buyerId) {
-    showToast('Please select a valid buyer', 'danger');
-    return;
-  }
-
-  const buyerList = state.currentOrderBuyerType === 'shop' ? state.shops : state.customers;
-  const buyerObj = buyerList.find(b => b.id === buyerId);
-  const buyerName = buyerObj ? buyerObj.name : 'Unknown';
-
-  const items = [];
-  document.querySelectorAll('.order-item-row').forEach(rowDiv => {
-    const catId = rowDiv.querySelector('.prod-select')?.value;
-    const catObj = state.catalog.find(c => c.id === catId);
-    if (catObj) {
-      const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
-      const sellingPrice = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
-      if (qty > 0) {
-        items.push({
-          productId: catObj.id,
-          product: catObj.name,
-          weight: catObj.weight,
-          qty,
-          wholesalePrice: catObj.wholesalePrice,
-          sellingPrice,
-          amount: qty * sellingPrice
-        });
-      }
-    }
-  });
-
-  if (items.length === 0) {
-    showToast('Please add at least one product line item', 'danger');
-    return;
-  }
-
-  const subtotal = items.reduce((acc, item) => acc + item.amount, 0);
-  const shipping = parseFloat(document.getElementById('order-shipping')?.value) || 0;
-  const discount = parseFloat(document.getElementById('order-discount')?.value) || 0;
-  const total = Math.max(0, subtotal + shipping - discount);
-  const notes = document.getElementById('order-notes')?.value.trim() || '';
-
-  const order = {
-    id: generateId('order'),
-    buyerType: state.currentOrderBuyerType,
-    buyerId,
-    buyerName,
-    customerType: state.currentOrderCustomerType,
-    items,
-    subtotal,
-    shipping,
-    discount,
-    total,
-    notes,
-    status: 'New',
-    createdAt: new Date().toISOString()
-  };
-
-  await saveItem('newOrders', order);
-  state.newOrders.unshift(order);
-  closeModal('add-new-order-modal');
-  showToast(`New order for "${buyerName}" saved!`);
-  renderAllViews();
-}
-
-window.confirmDeleteNewOrder = (orderId) => {
-  const order = state.newOrders.find(o => o.id === orderId);
-  if (!order) return;
-
-  confirmDelete(`Delete new order entry for "${order.buyerName}"?`, async () => {
-    await deleteItem('newOrders', orderId);
-    state.newOrders = state.newOrders.filter(o => o.id !== orderId);
-    showToast('Order entry deleted');
-    renderAllViews();
-  });
-};
-
-window.convertToSale = (orderId) => {
-  const order = state.newOrders.find(o => o.id === orderId);
-  if (!order) return;
-
-  switchView('sales-view', true, true);
-  openNewSaleForm();
-
-  state.currentBuyerType = order.buyerType || 'customer';
-  document.querySelectorAll('.buyer-type-btn').forEach(b => {
-    b.classList.toggle('active', b.getAttribute('data-type') === state.currentBuyerType);
-  });
-  populateBuyerDropdown();
-
-  const buyerSel = document.getElementById('sale-buyer-select');
-  if (buyerSel && order.buyerId) {
-    buyerSel.value = order.buyerId;
-  }
-
-  state.currentCustomerType = order.customerType || 'wholesale';
-  document.querySelectorAll('.cust-type-btn').forEach(b => {
-    b.classList.toggle('active', b.getAttribute('data-type') === state.currentCustomerType);
-  });
-
-  const rowsContainer = document.getElementById('product-rows-container');
-  if (rowsContainer) {
-    rowsContainer.innerHTML = '';
-    if (order.items && order.items.length > 0) {
-      order.items.forEach(item => {
-        addProductRow();
-        const lastRow = rowsContainer.lastElementChild;
-        if (lastRow) {
-          const prodSel = lastRow.querySelector('.prod-select');
-          const qtyInput = lastRow.querySelector('.prod-qty');
-          const priceInput = lastRow.querySelector('.prod-price');
-
-          if (prodSel && item.productId) prodSel.value = item.productId;
-          if (qtyInput) qtyInput.value = item.qty;
-          if (priceInput) priceInput.value = item.sellingPrice;
-
-          calculateRowAmount(lastRow);
-        }
-      });
-    } else {
-      addProductRow();
-    }
-  }
-
-  const shipInput = document.getElementById('sale-shipping');
-  if (shipInput) shipInput.value = order.shipping || '';
-
-  const discInput = document.getElementById('sale-discount');
-  if (discInput) discInput.value = order.discount || '';
-
-  calculateSaleTotals();
-  showToast(`Order for ${order.buyerName} pre-filled in Sales Form!`);
-};
-
-function renderNewOrdersList() {
-  const homeContainer = document.getElementById('home-new-orders-list-container');
-  const fullContainer = document.getElementById('full-new-orders-list-container');
-
-  const ordersHtml = state.newOrders.length === 0
-    ? `<p style="color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 14px;">No pre-production orders logged yet.</p>`
-    : state.newOrders.map(o => {
-        const itemsSummary = (o.items || []).map(i => `${i.product} ${i.weight} × ${i.qty} pcs`).join(', ') || `${o.lureName || 'Lures'} × ${o.quantity || 1} pcs`;
-
-        return `
-          <div class="list-item">
-            <div class="list-item-header">
-              <span class="list-item-title">📋 ${escapeHTML(o.buyerName || o.customerName)} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHTML((o.buyerType || 'customer').toUpperCase())})</span></span>
-              <span class="badge badge-info">₹${(o.total || o.estimatedAmount || 0).toLocaleString('en-IN')}</span>
-            </div>
-            <div class="list-item-sub">
-              Type: <strong>${(o.customerType || 'wholesale').toUpperCase()}</strong> • Items: <strong>${escapeHTML(itemsSummary)}</strong><br>
-              ${o.notes ? `Note: <em>${escapeHTML(o.notes)}</em><br>` : ''}
-              <span style="font-size:0.7rem; color:var(--text-muted);">Logged: ${new Date(o.createdAt).toLocaleDateString()}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-              <button class="btn btn-primary btn-sm" onclick="window.convertToSale('${o.id}')">⚡ Convert to Completed Sale</button>
-              <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteNewOrder('${o.id}')">✕</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-  if (homeContainer) homeContainer.innerHTML = ordersHtml;
-  if (fullContainer) fullContainer.innerHTML = ordersHtml;
-}
 
 window.openUpdatePaymentModal = (saleId) => {
   const sale = state.sales.find(s => s.id === saleId);
@@ -1020,9 +492,7 @@ async function loadAllData() {
     state.purchases = await getAll('purchases');
     state.plannedPurchases = await getAll('plannedPurchases');
     state.catalog = await getAll('catalog');
-    state.newOrders = await getAll('newOrders');
     state.sales.sort((a, b) => new Date(b.date) - new Date(a.date));
-    state.newOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (e) {
     console.error('Failed loading DB data:', e);
   }
@@ -1154,46 +624,6 @@ function setupEventListeners() {
     switchView(state.currentView, false, false);
   });
 
-  // New Orders Forms (Full Multi-Product Support)
-  document.getElementById('open-add-new-order-modal')?.addEventListener('click', window.openNewOrderModal);
-  document.getElementById('open-add-new-order-modal-2')?.addEventListener('click', window.openNewOrderModal);
-  document.getElementById('add-new-order-form')?.addEventListener('submit', handleAddNewOrder);
-
-  document.querySelectorAll('.order-buyer-type-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.order-buyer-type-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.currentOrderBuyerType = btn.getAttribute('data-type');
-      populateOrderBuyerDropdown();
-    });
-  });
-
-  document.querySelectorAll('.order-cust-type-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.order-cust-type-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.currentOrderCustomerType = btn.getAttribute('data-type');
-      updateAllOrderRowPricing();
-      calculateOrderTotals();
-    });
-  });
-
-  document.getElementById('order-quick-add-buyer-btn')?.addEventListener('click', () => {
-    if (state.currentOrderBuyerType === 'shop') {
-      openModal('add-shop-modal');
-    } else {
-      openModal('add-customer-modal');
-    }
-  });
-
-  document.getElementById('add-order-product-row-btn')?.addEventListener('click', () => {
-    addOrderProductRow();
-  });
-
-  ['order-shipping', 'order-discount'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', calculateOrderTotals);
-  });
-
   // Shops View
   document.getElementById('open-add-shop-modal')?.addEventListener('click', () => {
     openModal('add-shop-modal');
@@ -1283,6 +713,35 @@ function setupEventListeners() {
 
   document.getElementById('save-sale-btn')?.addEventListener('click', handleSaveSale);
 
+  // Edit Sale / Order Modal Listeners
+  document.getElementById('edit-sale-form')?.addEventListener('submit', handleSaveEditedSale);
+
+  document.querySelectorAll('.edit-buyer-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.edit-buyer-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      editSaleBuyerType = btn.getAttribute('data-type');
+      populateEditBuyerDatalist();
+    });
+  });
+
+  document.querySelectorAll('.edit-cust-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.edit-cust-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      editSaleCustomerType = btn.getAttribute('data-type');
+      calculateEditSaleTotals();
+    });
+  });
+
+  document.getElementById('edit-add-product-row-btn')?.addEventListener('click', () => {
+    addEditProductRow();
+  });
+
+  ['edit-sale-shipping', 'edit-sale-discount', 'edit-sale-free-jigs', 'edit-sale-amount-paid'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', calculateEditSaleTotals);
+  });
+
   // Purchases View
   document.getElementById('open-add-purchase-modal')?.addEventListener('click', () => {
     openModal('add-purchase-modal');
@@ -1335,41 +794,7 @@ function setupEventListeners() {
   document.getElementById('comp-month-a')?.addEventListener('change', renderMonthComparison);
   document.getElementById('comp-month-b')?.addEventListener('change', renderMonthComparison);
 
-  // Invoice Image Handlers
-  document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
-  document.getElementById('download-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('download'));
-
-  // Direct Button Tap inside Invoice Image Preview Modal for synchronous iOS Safari User Gesture
-  document.getElementById('execute-native-share-btn')?.addEventListener('click', async () => {
-    const file = state.currentInvoiceFile;
-    const blob = state.currentInvoiceBlob;
-    const fileName = state.currentInvoiceFileName || 'Invoice.png';
-
-    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: `Invoice - Sigma Lures`,
-          text: `Invoice details`
-        });
-        showToast('Invoice image shared!');
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        console.warn('Native share error:', err);
-      }
-    }
-
-    if (blob) {
-      downloadBlob(blob, fileName);
-    }
-  });
-
-  document.getElementById('execute-image-download-btn')?.addEventListener('click', () => {
-    if (state.currentInvoiceBlob) {
-      downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
-    }
-  });
+  document.getElementById('share-invoice-btn')?.addEventListener('click', handleShareInvoice);
 }
 
 function setupDefaultDates() {
@@ -1438,7 +863,6 @@ function switchView(viewId, updateState = true, pushStateToHistory = true) {
 
 function renderAllViews() {
   renderDashboardStats();
-  renderNewOrdersList();
   renderShopsList();
   renderCustomersList();
   renderSalesList();
@@ -1569,11 +993,6 @@ async function handleAddShop(e) {
     const buyerSel = document.getElementById('sale-buyer-select');
     if (buyerSel) buyerSel.value = shop.id;
   }
-  if (state.currentOrderBuyerType === 'shop') {
-    populateOrderBuyerDropdown();
-    const orderBuyerSel = document.getElementById('order-buyer-select');
-    if (orderBuyerSel) orderBuyerSel.value = shop.id;
-  }
 
   renderShopsList();
 }
@@ -1618,15 +1037,18 @@ function renderShopsList() {
   if (!container) return;
 
   const filter = (document.getElementById('shop-search-input')?.value || '').toLowerCase();
-  const shops = state.shops.filter(s => s.name.toLowerCase().includes(filter));
+  const shopsWithSales = state.shops.filter(s =>
+    s.name.toLowerCase().includes(filter) &&
+    state.sales.some(sl => sl.buyerType === 'shop' && sl.buyerId === s.id)
+  );
 
-  if (shops.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No shops found.</p>`;
+  if (shopsWithSales.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No shops with sold orders found.</p>`;
     return;
   }
 
   let html = '';
-  shops.forEach(s => {
+  shopsWithSales.forEach(s => {
     const shopSales = state.sales.filter(sl => sl.buyerType === 'shop' && sl.buyerId === s.id);
     const totalSales = shopSales.reduce((acc, sl) => acc + (sl.total || 0), 0);
     const totalPending = shopSales.reduce((acc, sl) => acc + (sl.pending || 0), 0);
@@ -1681,11 +1103,6 @@ async function handleAddCustomer(e) {
     const buyerSel = document.getElementById('sale-buyer-select');
     if (buyerSel) buyerSel.value = customer.id;
   }
-  if (state.currentOrderBuyerType === 'customer') {
-    populateOrderBuyerDropdown();
-    const orderBuyerSel = document.getElementById('order-buyer-select');
-    if (orderBuyerSel) orderBuyerSel.value = customer.id;
-  }
 
   renderCustomersList();
 }
@@ -1730,15 +1147,18 @@ function renderCustomersList() {
   if (!container) return;
 
   const filter = (document.getElementById('customer-search-input')?.value || '').toLowerCase();
-  const custs = state.customers.filter(c => c.name.toLowerCase().includes(filter));
+  const custsWithSales = state.customers.filter(c =>
+    c.name.toLowerCase().includes(filter) &&
+    state.sales.some(sl => sl.buyerType === 'customer' && sl.buyerId === c.id)
+  );
 
-  if (custs.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No individual customers found.</p>`;
+  if (custsWithSales.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No individual customers with sold orders found.</p>`;
     return;
   }
 
   let html = '';
-  custs.forEach(c => {
+  custsWithSales.forEach(c => {
     const custSales = state.sales.filter(sl => sl.buyerType === 'customer' && sl.buyerId === c.id);
     const totalSales = custSales.reduce((acc, sl) => acc + (sl.total || 0), 0);
     const totalPending = custSales.reduce((acc, sl) => acc + (sl.pending || 0), 0);
@@ -1789,18 +1209,12 @@ function openNewSaleForm() {
 }
 
 function populateBuyerDropdown() {
-  const select = document.getElementById('sale-buyer-select');
-  if (!select) return;
+  const datalist = document.getElementById('buyer-datalist');
+  if (!datalist) return;
 
   const list = state.currentBuyerType === 'shop' ? state.shops : state.customers;
-
-  if (list.length === 0) {
-    select.innerHTML = `<option value="">No ${state.currentBuyerType}s available - Please add one</option>`;
-    return;
-  }
-
-  select.innerHTML = list.map(item => `
-    <option value="${item.id}">${escapeHTML(item.name)}</option>
+  datalist.innerHTML = list.map(item => `
+    <option value="${escapeHTML(item.name)}"></option>
   `).join('');
 }
 
@@ -1897,7 +1311,7 @@ function calculateRowAmount(rowDiv) {
 }
 
 function updateAllProductRowPricing() {
-  document.querySelectorAll('.product-item-row').forEach(rowDiv => {
+  document.querySelectorAll('.product-item-row:not(.edit-product-item-row)').forEach(rowDiv => {
     const select = rowDiv.querySelector('.prod-select');
     const priceInput = rowDiv.querySelector('.prod-price');
     const selectedCat = state.catalog.find(c => c.id === select?.value);
@@ -1917,7 +1331,7 @@ function updateAllProductRowPricing() {
 
 function calculateSaleTotals() {
   let subtotal = 0;
-  document.querySelectorAll('#product-rows-container .product-item-row').forEach(rowDiv => {
+  document.querySelectorAll('.product-item-row:not(.edit-product-item-row)').forEach(rowDiv => {
     const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
     const price = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
     subtotal += qty * price;
@@ -1939,20 +1353,46 @@ function calculateSaleTotals() {
 }
 
 async function handleSaveSale() {
-  const buyerId = document.getElementById('sale-buyer-select')?.value;
-  if (!buyerId) {
-    showToast('Please select a valid buyer', 'danger');
+  const buyerName = document.getElementById('sale-buyer-input')?.value.trim();
+  if (!buyerName) {
+    showToast('Please enter or select a valid buyer name', 'danger');
     return;
   }
 
-  const buyerList = state.currentBuyerType === 'shop' ? state.shops : state.customers;
-  const buyerObj = buyerList.find(b => b.id === buyerId);
-  const buyerName = buyerObj ? buyerObj.name : 'Unknown';
+  let buyerObj = null;
+  if (state.currentBuyerType === 'shop') {
+    buyerObj = state.shops.find(s => s.name.toLowerCase() === buyerName.toLowerCase());
+    if (!buyerObj) {
+      buyerObj = {
+        id: generateId('shop'),
+        name: buyerName,
+        phone: '',
+        address: '',
+        createdAt: new Date().toISOString()
+      };
+      await saveItem('shops', buyerObj);
+      state.shops.push(buyerObj);
+    }
+  } else {
+    buyerObj = state.customers.find(c => c.name.toLowerCase() === buyerName.toLowerCase());
+    if (!buyerObj) {
+      buyerObj = {
+        id: generateId('cust'),
+        name: buyerName,
+        phone: '',
+        address: '',
+        createdAt: new Date().toISOString()
+      };
+      await saveItem('customers', buyerObj);
+      state.customers.push(buyerObj);
+    }
+  }
 
+  const buyerId = buyerObj.id;
   const date = document.getElementById('sale-date')?.value || new Date().toISOString().split('T')[0];
 
   const items = [];
-  document.querySelectorAll('#product-rows-container .product-item-row').forEach(rowDiv => {
+  document.querySelectorAll('.product-item-row:not(.edit-product-item-row)').forEach(rowDiv => {
     const catId = rowDiv.querySelector('.prod-select')?.value;
     const catObj = state.catalog.find(c => c.id === catId);
     if (catObj) {
@@ -2001,7 +1441,7 @@ async function handleSaveSale() {
     date,
     buyerType: state.currentBuyerType,
     buyerId,
-    buyerName,
+    buyerName: buyerObj.name,
     customerType: state.currentCustomerType,
     items,
     subtotal,
@@ -2019,11 +1459,298 @@ async function handleSaveSale() {
   await saveItem('sales', sale);
   state.sales.unshift(sale);
 
-  const saleForm = document.getElementById('new-sale-form-container');
-  if (saleForm) saleForm.style.display = 'none';
-  updateHeaderBackButton();
-  showToast('Sale saved successfully!');
+let editSaleBuyerType = 'shop';
+let editSaleCustomerType = 'wholesale';
+
+window.openEditSaleModal = (saleId) => {
+  const sale = state.sales.find(s => s.id === saleId);
+  if (!sale) return;
+
+  const idInput = document.getElementById('edit-sale-id');
+  if (idInput) idInput.value = sale.id;
+
+  editSaleBuyerType = sale.buyerType || 'shop';
+  editSaleCustomerType = sale.customerType || 'wholesale';
+
+  document.querySelectorAll('.edit-buyer-type-btn').forEach(btn => {
+    if (btn.getAttribute('data-type') === editSaleBuyerType) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  document.querySelectorAll('.edit-cust-type-btn').forEach(btn => {
+    if (btn.getAttribute('data-type') === editSaleCustomerType) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  populateEditBuyerDatalist();
+
+  const buyerInput = document.getElementById('edit-sale-buyer-input');
+  if (buyerInput) buyerInput.value = sale.buyerName || '';
+
+  const dateInput = document.getElementById('edit-sale-date');
+  if (dateInput) dateInput.value = sale.date || new Date().toISOString().split('T')[0];
+
+  const shippingInput = document.getElementById('edit-sale-shipping');
+  if (shippingInput) shippingInput.value = sale.shipping || '';
+
+  const discountInput = document.getElementById('edit-sale-discount');
+  if (discountInput) discountInput.value = sale.discount || '';
+
+  const freeInput = document.getElementById('edit-sale-free-jigs');
+  if (freeInput) freeInput.value = sale.freeQty || '';
+
+  const paidInput = document.getElementById('edit-sale-amount-paid');
+  if (paidInput) paidInput.value = sale.paid !== undefined ? sale.paid : '';
+
+  const container = document.getElementById('edit-product-rows-container');
+  if (container) {
+    container.innerHTML = '';
+    if (sale.items && sale.items.length > 0) {
+      sale.items.forEach(item => addEditProductRow(item));
+    } else {
+      addEditProductRow();
+    }
+  }
+
+  calculateEditSaleTotals();
+  openModal('edit-sale-modal');
+};
+
+function populateEditBuyerDatalist() {
+  const datalist = document.getElementById('edit-buyer-datalist');
+  if (!datalist) return;
+  const list = editSaleBuyerType === 'shop' ? state.shops : state.customers;
+  datalist.innerHTML = list.map(item => `
+    <option value="${escapeHTML(item.name)}"></option>
+  `).join('');
+}
+
+function addEditProductRow(existingItem = null) {
+  const container = document.getElementById('edit-product-rows-container');
+  if (!container) return;
+
+  const rowId = `edit_prod_row_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+
+  const div = document.createElement('div');
+  div.className = 'product-item-row edit-product-item-row';
+  div.id = rowId;
+
+  const catOptions = state.catalog.map(cat => `
+    <option value="${cat.id}">${cat.name} ${cat.weight} (W: ₹${cat.wholesalePrice} | R: ₹${cat.retailPrice || cat.wholesalePrice})</option>
+  `).join('');
+
+  div.innerHTML = `
+    <div class="product-row-top">
+      <select class="form-select prod-select" style="flex: 1;">
+        <option value="">-- Select Product --</option>
+        ${catOptions}
+      </select>
+    </div>
+    <div class="product-row-bottom">
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">Qty</label>
+        <input type="number" class="form-input prod-qty" value="${existingItem ? existingItem.qty : 1}" min="1">
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">Selling Price</label>
+        <input type="number" class="form-input prod-price" placeholder="Price" value="${existingItem ? existingItem.sellingPrice : ''}" min="0" step="0.01">
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">Amount</label>
+        <div class="prod-amount" style="font-size: 0.85rem; font-weight:700; padding-top:8px;">₹0</div>
+      </div>
+      <div>
+        <label class="form-label" style="font-size:0.68rem;">&nbsp;</label>
+        <button type="button" class="remove-prod-btn">✕</button>
+      </div>
+    </div>
+  `;
+
+  container.appendChild(div);
+
+  const select = div.querySelector('.prod-select');
+  const qtyInput = div.querySelector('.prod-qty');
+  const priceInput = div.querySelector('.prod-price');
+  const removeBtn = div.querySelector('.remove-prod-btn');
+
+  if (existingItem) {
+    const matchedCat = state.catalog.find(c => c.name === existingItem.product && c.weight === existingItem.weight);
+    if (matchedCat && select) {
+      select.value = matchedCat.id;
+    }
+  }
+
+  select?.addEventListener('change', () => {
+    const selectedCat = state.catalog.find(c => c.id === select.value);
+    if (selectedCat && priceInput && !existingItem) {
+      if (editSaleCustomerType === 'wholesale') {
+        priceInput.value = selectedCat.wholesalePrice;
+        priceInput.readOnly = true;
+      } else {
+        priceInput.value = selectedCat.retailPrice || selectedCat.wholesalePrice;
+        priceInput.readOnly = false;
+      }
+    }
+    calculateRowAmount(div);
+    calculateEditSaleTotals();
+  });
+
+  qtyInput?.addEventListener('input', () => {
+    calculateRowAmount(div);
+    calculateEditSaleTotals();
+  });
+
+  priceInput?.addEventListener('input', () => {
+    calculateRowAmount(div);
+    calculateEditSaleTotals();
+  });
+
+  removeBtn?.addEventListener('click', () => {
+    div.remove();
+    calculateEditSaleTotals();
+  });
+
+  calculateRowAmount(div);
+}
+
+function calculateEditSaleTotals() {
+  let subtotal = 0;
+  document.querySelectorAll('.edit-product-item-row').forEach(rowDiv => {
+    const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
+    const price = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
+    subtotal += qty * price;
+  });
+
+  const shipping = parseFloat(document.getElementById('edit-sale-shipping')?.value) || 0;
+  const discount = parseFloat(document.getElementById('edit-sale-discount')?.value) || 0;
+  const finalTotal = Math.max(0, subtotal + shipping - discount);
+
+  const paidRaw = document.getElementById('edit-sale-amount-paid')?.value;
+  const paid = (paidRaw === '' || paidRaw === undefined) ? 0 : parseFloat(paidRaw) || 0;
+  const pending = Math.max(0, finalTotal - paid);
+
+  setText('edit-sale-calc-subtotal', `₹${subtotal.toLocaleString('en-IN')}`);
+  setText('edit-sale-calc-total', `₹${finalTotal.toLocaleString('en-IN')}`);
+  setText('edit-sale-calc-pending', `₹${pending.toLocaleString('en-IN')}`);
+}
+
+async function handleSaveEditedSale(e) {
+  e.preventDefault();
+  const saleId = document.getElementById('edit-sale-id')?.value;
+  const sale = state.sales.find(s => s.id === saleId);
+  if (!sale) return;
+
+  const buyerName = document.getElementById('edit-sale-buyer-input')?.value.trim();
+  if (!buyerName) {
+    showToast('Please enter a valid buyer name', 'danger');
+    return;
+  }
+
+  let buyerObj = null;
+  if (editSaleBuyerType === 'shop') {
+    buyerObj = state.shops.find(s => s.name.toLowerCase() === buyerName.toLowerCase());
+    if (!buyerObj) {
+      buyerObj = {
+        id: generateId('shop'),
+        name: buyerName,
+        phone: '',
+        address: '',
+        createdAt: new Date().toISOString()
+      };
+      await saveItem('shops', buyerObj);
+      state.shops.push(buyerObj);
+    }
+  } else {
+    buyerObj = state.customers.find(c => c.name.toLowerCase() === buyerName.toLowerCase());
+    if (!buyerObj) {
+      buyerObj = {
+        id: generateId('cust'),
+        name: buyerName,
+        phone: '',
+        address: '',
+        createdAt: new Date().toISOString()
+      };
+      await saveItem('customers', buyerObj);
+      state.customers.push(buyerObj);
+    }
+  }
+
+  const date = document.getElementById('edit-sale-date')?.value || sale.date;
+
+  const items = [];
+  document.querySelectorAll('.edit-product-item-row').forEach(rowDiv => {
+    const catId = rowDiv.querySelector('.prod-select')?.value;
+    const catObj = state.catalog.find(c => c.id === catId);
+    if (catObj) {
+      const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
+      const sellingPrice = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
+      if (qty > 0) {
+        items.push({
+          product: catObj.name,
+          weight: catObj.weight,
+          qty,
+          wholesalePrice: catObj.wholesalePrice,
+          sellingPrice,
+          amount: qty * sellingPrice
+        });
+      }
+    }
+  });
+
+  if (items.length === 0) {
+    showToast('Please add at least one product with quantity > 0', 'danger');
+    return;
+  }
+
+  const subtotal = items.reduce((acc, item) => acc + item.amount, 0);
+  const shipping = parseFloat(document.getElementById('edit-sale-shipping')?.value) || 0;
+  const discount = parseFloat(document.getElementById('edit-sale-discount')?.value) || 0;
+  const freeQty = parseInt(document.getElementById('edit-sale-free-jigs')?.value) || 0;
+  const total = Math.max(0, subtotal + shipping - discount);
+
+  const paidInputRaw = document.getElementById('edit-sale-amount-paid')?.value;
+  const paid = (paidInputRaw === '' || paidInputRaw === undefined) ? 0 : parseFloat(paidInputRaw) || 0;
+  const pending = Math.max(0, total - paid);
+
+  let status = 'Pending';
+  if (paid >= total && total > 0) {
+    status = 'Paid';
+  } else if (paid > 0 && paid < total) {
+    status = 'Partially Paid';
+  }
+
+  sale.buyerType = editSaleBuyerType;
+  sale.buyerId = buyerObj.id;
+  sale.buyerName = buyerObj.name;
+  sale.customerType = editSaleCustomerType;
+  sale.date = date;
+  sale.items = items;
+  sale.subtotal = subtotal;
+  sale.shipping = shipping;
+  sale.discount = discount;
+  sale.freeQty = freeQty;
+  sale.total = total;
+  sale.paid = paid;
+  sale.pending = pending;
+  sale.status = status;
+  sale.updatedAt = new Date().toISOString();
+
+  await saveItem('sales', sale);
+  closeModal('edit-sale-modal');
+  showToast('Order / Sale updated successfully!');
+
   renderAllViews();
+  if (state.activeProfile === 'shop' && state.activeShopId) {
+    window.viewShopProfile(state.activeShopId);
+  } else if (state.activeProfile === 'customer' && state.activeCustomerId) {
+    window.viewCustomerProfile(state.activeCustomerId);
+  }
 }
 
 function renderSalesList() {
@@ -2056,6 +1783,7 @@ function renderSalesList() {
             <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 6px;">(Paid: ₹${s.paid.toLocaleString('en-IN')} | Pending: ₹${s.pending.toLocaleString('en-IN')})</span>
           </div>
           <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary btn-sm" onclick="window.openEditSaleModal('${s.id}')">✏️ Edit Order</button>
             <button class="btn btn-secondary btn-sm" onclick="window.openUpdatePaymentModal('${s.id}')">Update Pay</button>
             <button class="btn btn-primary btn-sm" onclick="window.openInvoiceModal('${s.id}')">Invoice</button>
             <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteSale('${s.id}')">✕</button>
@@ -2160,6 +1888,44 @@ function renderInvoicesList() {
   });
 
   container.innerHTML = html;
+}
+
+async function handleShareInvoice() {
+  const sale = state.currentInvoiceSale;
+  if (!sale) return;
+
+  const textSummary = `SIGMA LURES - INVOICE #${sale.invoiceNo}
+Customer: ${sale.buyerName}
+Date: ${sale.date}
+Items:
+${sale.items.map(i => `- ${i.product} ${i.weight} x ${i.qty} = ₹${i.amount}`).join('\n')}
+${sale.freeQty > 0 ? `Free Jigs: ${sale.freeQty} pcs\n` : ''}Total Amount: ₹${sale.total}
+Paid: ₹${sale.paid}
+Pending Dues: ₹${sale.pending}
+Status: ${sale.status}`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: `Invoice #${sale.invoiceNo} - Sigma Lures`,
+        text: textSummary
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        copyToClipboard(textSummary);
+      }
+    }
+  } else {
+    copyToClipboard(textSummary);
+  }
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Invoice details copied to clipboard!');
+  }).catch(() => {
+    showToast('Unable to copy automatically', 'warning');
+  });
 }
 
 async function handleAddPurchase(e) {

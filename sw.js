@@ -3,7 +3,7 @@
  * Caches core application assets while strictly preserving local database integrity.
  */
 
-const CACHE_NAME = 'sigma-lures-v9';
+const CACHE_NAME = 'sigma-lures-v3';
 const ASSETS_TO_CACHE = [
   './index.html',
   './styles.css',
@@ -18,7 +18,6 @@ const ASSETS_TO_CACHE = [
 
 // Install Event - Cache Application Shell Safely
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       for (const asset of ASSETS_TO_CACHE) {
@@ -28,11 +27,11 @@ self.addEventListener('install', (event) => {
           console.warn('Skipped caching asset:', asset);
         }
       }
-    })
+    }).then(() => self.skipWaiting())
   );
 });
 
-// Activate Event - Clean Up Obsolete Caches Immediately
+// Activate Event - Clean Up Obsolete Caches (Without touching IndexedDB!)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {

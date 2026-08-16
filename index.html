@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="icon" type="image/png" href="logo.png">
   
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
@@ -35,10 +35,6 @@
         <button id="global-header-back-btn" class="btn btn-secondary btn-sm header-back-btn" style="display: none;">
           ← Back
         </button>
-        <div class="offline-badge">
-          <span class="dot-indicator"></span>
-          <span>Offline</span>
-        </div>
       </div>
     </div>
   </header>
@@ -102,27 +98,22 @@
         </div>
       </div>
 
-      <!-- NEW ORDERS (PRE-PRODUCTION QUEUE) CARD ON HOME PAGE -->
-      <div class="card" id="home-new-orders-card">
-        <div class="card-title">
-          <span>📋 New Orders (Pre-Production Queue)</span>
-          <button class="btn btn-primary btn-sm" id="open-add-new-order-modal">+ Note Order</button>
-        </div>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
-          Note incoming orders before lure manufacturing. Once ready, tap <strong>"Convert to Sale"</strong> to create invoice & save.
-        </p>
-        <div id="home-new-orders-list-container"></div>
-      </div>
-
-      <!-- Quick Action Buttons Grid (Custom Rearranged Order) -->
+      <!-- Quick Action Buttons -->
       <div class="card-title">Business Hub</div>
       <div class="dashboard-grid">
-        <!-- Row 1: Purchases | Sales Tracker -->
-        <button class="dash-btn" data-target="purchases-view">
-          <div class="dash-btn-icon">🧾</div>
+        <button class="dash-btn" data-target="shops-view">
+          <div class="dash-btn-icon">🏪</div>
           <div>
-            <div class="dash-btn-title">Purchases</div>
-            <div class="dash-btn-subtitle">Log material costs</div>
+            <div class="dash-btn-title">Shops</div>
+            <div class="dash-btn-subtitle">Manage retail shops</div>
+          </div>
+        </button>
+
+        <button class="dash-btn" data-target="customers-view">
+          <div class="dash-btn-icon">👤</div>
+          <div>
+            <div class="dash-btn-title">Customers</div>
+            <div class="dash-btn-subtitle">Manage direct buyers</div>
           </div>
         </button>
 
@@ -134,29 +125,19 @@
           </div>
         </button>
 
-        <!-- Row 2: Shop | Customer -->
-        <button class="dash-btn" data-target="shops-view">
-          <div class="dash-btn-icon">🏪</div>
-          <div>
-            <div class="dash-btn-title">Shop</div>
-            <div class="dash-btn-subtitle">Manage retail shops</div>
-          </div>
-        </button>
-
-        <button class="dash-btn" data-target="customers-view">
-          <div class="dash-btn-icon">👤</div>
-          <div>
-            <div class="dash-btn-title">Customer</div>
-            <div class="dash-btn-subtitle">Manage direct buyers</div>
-          </div>
-        </button>
-
-        <!-- Row 3: Pending Payment | Planned Items -->
         <button class="dash-btn" data-target="pending-view">
           <div class="dash-btn-icon">💳</div>
           <div>
-            <div class="dash-btn-title">Pending Payment</div>
+            <div class="dash-btn-title">Pending Payments</div>
             <div class="dash-btn-subtitle">Collect unpaid dues</div>
+          </div>
+        </button>
+
+        <button class="dash-btn" data-target="purchases-view">
+          <div class="dash-btn-icon">🧾</div>
+          <div>
+            <div class="dash-btn-title">Purchases</div>
+            <div class="dash-btn-subtitle">Log material costs</div>
           </div>
         </button>
 
@@ -168,7 +149,14 @@
           </div>
         </button>
 
-        <!-- Row 4: Reports | Invoice -->
+        <button class="dash-btn" data-target="invoices-view">
+          <div class="dash-btn-icon">📄</div>
+          <div>
+            <div class="dash-btn-title">Invoices</div>
+            <div class="dash-btn-subtitle">Generate & share</div>
+          </div>
+        </button>
+
         <button class="dash-btn" data-target="reports-view">
           <div class="dash-btn-icon">📊</div>
           <div>
@@ -177,44 +165,13 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="invoices-view">
-          <div class="dash-btn-icon">📄</div>
-          <div>
-            <div class="dash-btn-title">Invoice</div>
-            <div class="dash-btn-subtitle">Generate & share image</div>
-          </div>
-        </button>
-
-        <!-- Row 5: Backup | New Order -->
-        <button class="dash-btn" data-target="backup-view">
+        <button class="dash-btn" data-target="backup-view" style="grid-column: span 2;">
           <div class="dash-btn-icon">💾</div>
           <div>
-            <div class="dash-btn-title">Backup</div>
-            <div class="dash-btn-subtitle">Export data & restore</div>
+            <div class="dash-btn-title">Backup & Settings</div>
+            <div class="dash-btn-subtitle">Export data, catalog & restore</div>
           </div>
         </button>
-
-        <button class="dash-btn" data-target="new-orders-view">
-          <div class="dash-btn-icon">📋</div>
-          <div>
-            <div class="dash-btn-title">New Order</div>
-            <div class="dash-btn-subtitle">Incoming pre-orders</div>
-          </div>
-        </button>
-      </div>
-    </section>
-
-    <!-- NEW ORDERS FULL VIEW -->
-    <section id="new-orders-view" class="view-section">
-      <div class="card">
-        <div class="card-title">
-          <span>📋 Incoming Custom Orders</span>
-          <button class="btn btn-primary btn-sm" id="open-add-new-order-modal-2">+ Add New Order</button>
-        </div>
-        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
-          Queue for newly received customer orders before making lures.
-        </p>
-        <div id="full-new-orders-list-container"></div>
       </div>
     </section>
 
@@ -273,6 +230,7 @@
                 <th>Paid</th>
                 <th>Pending</th>
                 <th>Status</th>
+                <th style="text-align:center;">Details</th>
               </tr>
             </thead>
             <tbody id="shop-history-tbody"></tbody>
@@ -336,6 +294,7 @@
                 <th>Paid</th>
                 <th>Pending</th>
                 <th>Status</th>
+                <th style="text-align:center;">Details</th>
               </tr>
             </thead>
             <tbody id="cust-history-tbody"></tbody>
@@ -368,13 +327,14 @@
             </div>
           </div>
 
-          <!-- 2. Select Buyer -->
+          <!-- 2. Select / Enter Buyer -->
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label class="form-label" style="margin: 0;">Select Buyer</label>
+              <label class="form-label" style="margin: 0;">Buyer Name (Select or Type New)</label>
               <button type="button" class="btn btn-secondary btn-sm" id="sale-quick-add-buyer-btn">+ Add New</button>
             </div>
-            <select id="sale-buyer-select" class="form-select"></select>
+            <input type="text" id="sale-buyer-input" list="buyer-datalist" class="form-input" placeholder="Type or select shop/customer name..." autocomplete="off">
+            <datalist id="buyer-datalist"></datalist>
           </div>
 
           <!-- 3. Customer Type (Wholesale vs Retail) -->
@@ -583,15 +543,11 @@
 
   </main>
 
-  <!-- BOTTOM NAVIGATION BAR (FIXED POSITION LOCKED) -->
+  <!-- BOTTOM NAVIGATION BAR -->
   <nav class="bottom-nav">
     <button class="nav-item active" data-target="dashboard-view">
       <span class="icon">🏠</span>
       <span>Home</span>
-    </button>
-    <button class="nav-item" data-target="new-orders-view">
-      <span class="icon">📋</span>
-      <span>Orders</span>
     </button>
     <button class="nav-item" data-target="shops-view">
       <span class="icon">🏪</span>
@@ -605,86 +561,13 @@
       <span class="icon">💰</span>
       <span>Sales</span>
     </button>
+    <button class="nav-item" data-target="pending-view">
+      <span class="icon">💳</span>
+      <span>Pending</span>
+    </button>
   </nav>
 
   <!-- ================= MODALS ================= -->
-
-  <!-- Add New Order Modal (Pre-Production Intake with Multi-Product & Full Details) -->
-  <div id="add-new-order-modal" class="modal-overlay">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Note Incoming New Order</div>
-        <button class="modal-close close-modal-btn">✕</button>
-      </div>
-      <form id="add-new-order-form">
-        <!-- 1. Buyer Type -->
-        <div class="form-group">
-          <label class="form-label">Buyer Type</label>
-          <div class="grid-2">
-            <button type="button" class="btn btn-secondary order-buyer-type-btn active" data-type="shop">Shop</button>
-            <button type="button" class="btn btn-secondary order-buyer-type-btn" data-type="customer">Customer</button>
-          </div>
-        </div>
-
-        <!-- 2. Select Buyer -->
-        <div class="form-group">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label class="form-label" style="margin: 0;">Select Buyer</label>
-            <button type="button" class="btn btn-secondary btn-sm" id="order-quick-add-buyer-btn">+ Add New</button>
-          </div>
-          <select id="order-buyer-select" class="form-select"></select>
-        </div>
-
-        <!-- 3. Customer Type (Wholesale vs Retail) -->
-        <div class="form-group">
-          <label class="form-label">Customer Type</label>
-          <div class="grid-2">
-            <button type="button" class="btn btn-secondary order-cust-type-btn active" data-type="wholesale">Wholesale</button>
-            <button type="button" class="btn btn-secondary order-cust-type-btn" data-type="retail">Retail</button>
-          </div>
-        </div>
-
-        <!-- 4. Dynamic Line Items (Multi-Product Sizes) -->
-        <div class="form-group">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <label class="form-label" style="margin: 0;">Lures & Sizes Ordered</label>
-            <button type="button" class="btn btn-secondary btn-sm" id="add-order-product-row-btn">+ Add Product</button>
-          </div>
-          <div id="order-product-rows-container"></div>
-        </div>
-
-        <!-- 5. Summary Calculations -->
-        <div class="card" style="background: var(--bg-input); padding: 12px; margin-bottom: 14px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.88rem;">
-            <span>Subtotal:</span>
-            <span id="order-calc-subtotal" style="font-weight: 700;">₹0</span>
-          </div>
-          <div class="grid-2" style="margin-bottom: 8px;">
-            <div>
-              <label class="form-label" style="font-size:0.68rem;">Shipping</label>
-              <input type="number" id="order-shipping" class="form-input" placeholder="0" min="0">
-            </div>
-            <div>
-              <label class="form-label" style="font-size:0.68rem;">Discount</label>
-              <input type="number" id="order-discount" class="form-input" placeholder="0" min="0">
-            </div>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size:0.85rem; font-weight:600;">Estimated Total:</span>
-            <span id="order-calc-total" style="font-size: 1.1rem; font-weight: 800; color: var(--accent);">₹0</span>
-          </div>
-        </div>
-
-        <!-- 6. Custom Notes -->
-        <div class="form-group">
-          <label class="form-label">Additional Custom Notes</label>
-          <textarea id="order-notes" class="form-textarea" rows="2" placeholder="Color preferences, assist hook types, delivery deadline..."></textarea>
-        </div>
-
-        <button type="submit" class="btn btn-primary btn-block">Save New Order</button>
-      </form>
-    </div>
-  </div>
 
   <!-- Add Shop Modal -->
   <div id="add-shop-modal" class="modal-overlay">
@@ -890,7 +773,7 @@
     </div>
   </div>
 
-  <!-- Invoice HTML Modal -->
+  <!-- Invoice View / Print / Share Modal -->
   <div id="invoice-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 600px;">
       <div class="modal-header">
@@ -902,36 +785,106 @@
         <!-- Dynamic Invoice HTML rendered here -->
       </div>
 
-      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-primary btn-block" id="share-invoice-img-btn">📱 Generate & Share Image</button>
-          <button class="btn btn-secondary" id="download-invoice-img-btn" style="white-space: nowrap;">💾 Save Image</button>
-        </div>
-        <button class="btn btn-secondary btn-block" onclick="window.print();">🖨️ Print Invoice</button>
+      <div style="display: flex; gap: 10px; margin-top: 14px;">
+        <button class="btn btn-primary btn-block" id="share-invoice-btn">Share Invoice</button>
+        <button class="btn btn-secondary" onclick="window.print();">Print</button>
       </div>
-    </div>
-  </div>
-
-  <!-- INVOICE IMAGE PREVIEW & SHARE SHEET MODAL -->
-  <div id="invoice-img-modal" class="modal-overlay">
-    <div class="modal-card" style="max-width: 550px; text-align: center;">
+  <!-- Edit Sale / Order Modal -->
+  <div id="edit-sale-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header">
-        <div class="modal-title">Invoice Image Ready</div>
+        <div class="modal-title" style="color: var(--accent);">Edit Order / Sale</div>
         <button class="modal-close close-modal-btn">✕</button>
       </div>
-      
-      <div style="margin-bottom: 12px;">
-        <img id="invoice-preview-img" alt="Invoice Image" style="width: 100%; max-height: 55vh; object-fit: contain; border-radius: 8px; border: 1px solid var(--border-color); background: #ffffff;">
-      </div>
+      <form id="edit-sale-form">
+        <input type="hidden" id="edit-sale-id">
 
-      <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 14px;">
-        💡 <strong>iPhone / Android Tip:</strong> Tap below to share via WhatsApp, or <strong>Tap & Hold</strong> the image to Copy or Save to Photos directly!
-      </p>
+        <!-- 1. Buyer Type -->
+        <div class="form-group">
+          <label class="form-label">Buyer Type</label>
+          <div class="grid-2">
+            <button type="button" class="btn btn-secondary edit-buyer-type-btn" data-type="shop">Shop</button>
+            <button type="button" class="btn btn-secondary edit-buyer-type-btn" data-type="customer">Customer</button>
+          </div>
+        </div>
 
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <button class="btn btn-primary btn-block" id="execute-native-share-btn">📱 Send / Share Image</button>
-        <button class="btn btn-secondary btn-block" id="execute-image-download-btn">💾 Save Image to Device</button>
-      </div>
+        <!-- 2. Buyer Name -->
+        <div class="form-group">
+          <label class="form-label">Buyer Name</label>
+          <input type="text" id="edit-sale-buyer-input" list="edit-buyer-datalist" class="form-input" placeholder="Shop or Customer Name" required autocomplete="off">
+          <datalist id="edit-buyer-datalist"></datalist>
+        </div>
+
+        <!-- 3. Customer Type (Wholesale vs Retail) -->
+        <div class="form-group">
+          <label class="form-label">Customer Type</label>
+          <div class="grid-2">
+            <button type="button" class="btn btn-secondary edit-cust-type-btn" data-type="wholesale">Wholesale</button>
+            <button type="button" class="btn btn-secondary edit-cust-type-btn" data-type="retail">Retail</button>
+          </div>
+        </div>
+
+        <!-- 4. Sale Date -->
+        <div class="form-group">
+          <label class="form-label">Sale Date</label>
+          <input type="date" id="edit-sale-date" class="form-input" required>
+        </div>
+
+        <!-- 5. Dynamic Product Line Items -->
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="form-label" style="margin: 0;">Products Ordered</label>
+            <button type="button" class="btn btn-secondary btn-sm" id="edit-add-product-row-btn">+ Add Product</button>
+          </div>
+          <div id="edit-product-rows-container"></div>
+        </div>
+
+        <!-- 6. Summary Calculations -->
+        <div class="card" style="background: var(--bg-input); padding: 14px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+            <span>Subtotal:</span>
+            <span id="edit-sale-calc-subtotal" style="font-weight: 700;">₹0</span>
+          </div>
+
+          <div class="grid-2" style="margin-bottom: 10px;">
+            <div>
+              <label class="form-label">Shipping Charges</label>
+              <input type="number" id="edit-sale-shipping" class="form-input" placeholder="0" min="0">
+            </div>
+            <div>
+              <label class="form-label">Discount</label>
+              <input type="number" id="edit-sale-discount" class="form-input" placeholder="0" min="0">
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom: 10px;">
+            <div>
+              <label class="form-label">Free Jigs (Qty)</label>
+              <input type="number" id="edit-sale-free-jigs" class="form-input" placeholder="0" min="0">
+            </div>
+            <div>
+              <label class="form-label">Final Total</label>
+              <div id="edit-sale-calc-total" style="font-size: 1.2rem; font-weight: 800; color: var(--accent); padding-top: 8px;">₹0</div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div>
+              <label class="form-label">Amount Paid</label>
+              <input type="number" id="edit-sale-amount-paid" class="form-input" placeholder="0" min="0">
+            </div>
+            <div>
+              <label class="form-label">Pending Amount</label>
+              <div id="edit-sale-calc-pending" style="font-size: 1.1rem; font-weight: 800; color: var(--danger); padding-top: 8px;">₹0</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 14px;">
+          <button type="submit" class="btn btn-primary btn-block">Save Changes</button>
+          <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -950,6 +903,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=9"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
