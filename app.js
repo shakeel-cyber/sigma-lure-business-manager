@@ -4,7 +4,7 @@
  * Full Back Button, Edit & Delete Shop/Customer Features, Wholesale & Retail Catalogue Prices & Stealth Theme
  */
 
-import {
+const {
   initDB,
   getAll,
   getItem,
@@ -13,7 +13,7 @@ import {
   generateId,
   exportBackupJSON,
   importBackupJSON
-} from './db.js';
+} = window;
 
 // Application State
 const state = {
