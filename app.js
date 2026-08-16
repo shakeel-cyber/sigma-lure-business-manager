@@ -1210,14 +1210,24 @@ window.convertToSale = (orderId) => {
   showToast(`Order for ${order.buyerName} pre-filled in Sales Form!`);
 };
 
-window.toggleOrderAccordion = (orderId) => {
-  const detailsEl = document.getElementById(`order-details-${orderId}`);
-  const arrowEl = document.getElementById(`order-arrow-${orderId}`);
-  if (!detailsEl) return;
+window.toggleOrderAccordion = (event, orderId) => {
+  if (event) {
+    event.stopPropagation();
+  }
 
-  const isHidden = detailsEl.style.display === 'none' || detailsEl.style.display === '';
-  detailsEl.style.display = isHidden ? 'block' : 'none';
-  if (arrowEl) arrowEl.textContent = isHidden ? '▲ Tap to collapse order details' : '▼ Tap to view full order details';
+  const card = event ? event.currentTarget.closest('.card') : document.querySelector(`.order-card-${orderId}`);
+  if (!card) return;
+
+  const detailsEl = card.querySelector('.order-details-accordion');
+  const arrowEl = card.querySelector('.order-arrow-text');
+
+  if (detailsEl) {
+    const isHidden = detailsEl.style.display === 'none' || detailsEl.style.display === '';
+    detailsEl.style.display = isHidden ? 'block' : 'none';
+    if (arrowEl) {
+      arrowEl.textContent = isHidden ? '▲ Tap to collapse order details' : '▼ Tap to view full order details';
+    }
+  }
 };
 
 function renderNewOrdersList() {
@@ -1245,10 +1255,10 @@ function renderNewOrdersList() {
     `).join('');
 
     return `
-      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); margin-bottom: 16px; padding: 18px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+      <div class="card order-card-${o.id}" style="background: var(--bg-card); border: 1px solid var(--border-color); margin-bottom: 16px; padding: 18px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
 
         <!-- Header Card Summary (Tap to Expand) -->
-        <div onclick="window.toggleOrderAccordion('${o.id}')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div onclick="window.toggleOrderAccordion(event, '${o.id}')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
           <div>
             <div style="font-size: 1.15rem; font-weight: 900; color: #ffffff; display: flex; align-items: center; gap: 8px;">
               <span>📋 ${escapeHTML(o.buyerName || o.customerName)}</span>
@@ -1265,12 +1275,12 @@ function renderNewOrdersList() {
         </div>
 
         <!-- Toggle Hint Banner -->
-        <div onclick="window.toggleOrderAccordion('${o.id}')" style="cursor: pointer; margin-top: 12px; font-size: 0.8rem; color: var(--accent); font-weight: 700; text-align: center; border-top: 1px dashed var(--border-color); padding-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-          <span id="order-arrow-${o.id}">▼ Tap to view full order details</span>
+        <div onclick="window.toggleOrderAccordion(event, '${o.id}')" style="cursor: pointer; margin-top: 12px; font-size: 0.8rem; color: var(--accent); font-weight: 700; text-align: center; border-top: 1px dashed var(--border-color); padding-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span class="order-arrow-text">▼ Tap to view full order details</span>
         </div>
 
         <!-- Expandable Details Accordion -->
-        <div id="order-details-${o.id}" style="display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color);">
+        <div class="order-details-accordion" style="display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color);">
 
           <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Ordered Products Breakdown</div>
           <div class="table-responsive" style="margin-bottom: 14px;">
