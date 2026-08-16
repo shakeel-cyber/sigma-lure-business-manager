@@ -36,6 +36,70 @@ const state = {
 let editSaleBuyerType = 'shop';
 let editSaleCustomerType = 'wholesale';
 
+// Early Global Navigation Bindings
+window.switchView = function(viewId, updateState = true, pushStateToHistory = true) {
+  if (updateState) state.currentView = viewId;
+
+  const shopProfile = document.getElementById('shop-profile-card');
+  if (shopProfile) shopProfile.style.display = 'none';
+  const shopsMain = document.getElementById('shops-main-card');
+  if (shopsMain) shopsMain.style.display = 'block';
+
+  const custProfile = document.getElementById('customer-profile-card');
+  if (custProfile) custProfile.style.display = 'none';
+  const custsMain = document.getElementById('customers-main-card');
+  if (custsMain) custsMain.style.display = 'block';
+
+  const saleForm = document.getElementById('new-sale-form-container');
+  if (saleForm) saleForm.style.display = 'none';
+
+  document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-target') === viewId);
+  });
+
+  const activeSec = document.getElementById(viewId);
+  if (activeSec) {
+    activeSec.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  if (pushStateToHistory) {
+    try {
+      if (location.protocol.startsWith('http')) {
+        history.pushState({ view: viewId }, '', '');
+      }
+    } catch (e) {}
+  }
+
+  updateHeaderBackButton();
+  renderAllViews();
+};
+
+window.openModal = function(modalId) {
+  state.activeModal = modalId;
+  const overlay = document.getElementById(modalId);
+  if (overlay) overlay.classList.add('active');
+  updateHeaderBackButton();
+};
+
+window.closeModal = function(modalId) {
+  const overlay = document.getElementById(modalId);
+  if (overlay) overlay.classList.remove('active');
+  state.activeModal = null;
+  updateHeaderBackButton();
+};
+
+window.openNewOrderForm = function(e) {
+  if (e && e.preventDefault) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  window.switchView('sales-view');
+  openNewSaleForm();
+};
+
 // Global Order Row Expansion Toggle
 window.toggleOrderExpand = (saleId) => {
   const expandRow = document.getElementById(`order-expand-${saleId}`);
@@ -521,13 +585,15 @@ function setupDefaultDates() {
 }
 
 function setupHistoryHandling() {
-  window.addEventListener('popstate', (e) => {
-    if (e.state && e.state.view) {
-      switchView(e.state.view, false, false);
-    } else {
-      switchView('dashboard-view', false, false);
-    }
-  });
+  if (location.protocol.startsWith('http')) {
+    window.addEventListener('popstate', (e) => {
+      if (e.state && e.state.view) {
+        switchView(e.state.view, false, false);
+      } else {
+        switchView('dashboard-view', false, false);
+      }
+    });
+  }
 }
 
 function handleBackNavigation(pushStateToHistory = true) {
@@ -853,13 +919,20 @@ function switchView(viewId, updateState = true, pushStateToHistory = true) {
 
   if (pushStateToHistory) {
     try {
-      history.pushState({ view: viewId }, '', '');
+      if (location.protocol.startsWith('http')) {
+        history.pushState({ view: viewId }, '', '');
+      }
     } catch (e) {}
   }
 
   updateHeaderBackButton();
   renderAllViews();
 }
+
+window.switchView = switchView;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.openNewSaleForm = openNewSaleForm;
 
 function performGlobalSearch(query) {
   const container = document.getElementById('search-results-container');
@@ -1434,8 +1507,6 @@ async function handleSaveSale() {
   showToast(`Sale of ₹${totals.finalTotal.toLocaleString('en-IN')} created successfully`, 'success');
   renderAllViews();
 }
-
-// Edit Sale Modal Variables & Logic
 
 function populateEditBuyerDatalist() {
   const datalist = document.getElementById('edit-buyer-datalist');

@@ -101,7 +101,7 @@
       <!-- Business Hub Action Grid -->
       <div class="card-title">Business Hub</div>
       <div class="dashboard-grid">
-        <button class="dash-btn" data-target="shops-view">
+        <button class="dash-btn" data-target="shops-view" onclick="window.switchView('shops-view')">
           <div class="dash-btn-icon">🏪</div>
           <div>
             <div class="dash-btn-title">Shops</div>
@@ -109,7 +109,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="customers-view">
+        <button class="dash-btn" data-target="customers-view" onclick="window.switchView('customers-view')">
           <div class="dash-btn-icon">👤</div>
           <div>
             <div class="dash-btn-title">Customers</div>
@@ -117,7 +117,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="sales-view">
+        <button class="dash-btn" data-target="sales-view" onclick="window.switchView('sales-view')">
           <div class="dash-btn-icon">💰</div>
           <div>
             <div class="dash-btn-title">Sales Tracker</div>
@@ -125,7 +125,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="pending-view">
+        <button class="dash-btn" data-target="pending-view" onclick="window.switchView('pending-view')">
           <div class="dash-btn-icon">💳</div>
           <div>
             <div class="dash-btn-title">Pending Payments</div>
@@ -133,7 +133,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="purchases-view">
+        <button class="dash-btn" data-target="purchases-view" onclick="window.switchView('purchases-view')">
           <div class="dash-btn-icon">🧾</div>
           <div>
             <div class="dash-btn-title">Purchases</div>
@@ -141,7 +141,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="planned-purchases-view">
+        <button class="dash-btn" data-target="planned-purchases-view" onclick="window.switchView('planned-purchases-view')">
           <div class="dash-btn-icon">🛒</div>
           <div>
             <div class="dash-btn-title">Planned Items</div>
@@ -149,7 +149,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="invoices-view">
+        <button class="dash-btn" data-target="invoices-view" onclick="window.switchView('invoices-view')">
           <div class="dash-btn-icon">📄</div>
           <div>
             <div class="dash-btn-title">Invoices</div>
@@ -157,7 +157,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="reports-view">
+        <button class="dash-btn" data-target="reports-view" onclick="window.switchView('reports-view')">
           <div class="dash-btn-icon">📊</div>
           <div>
             <div class="dash-btn-title">Reports</div>
@@ -165,7 +165,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="backup-view">
+        <button class="dash-btn" data-target="backup-view" onclick="window.switchView('backup-view')">
           <div class="dash-btn-icon">💾</div>
           <div>
             <div class="dash-btn-title">Backup & Settings</div>
@@ -173,7 +173,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="sales-view" id="dash-new-order-btn">
+        <button class="dash-btn" data-target="sales-view" id="dash-new-order-btn" onclick="window.openNewOrderForm()">
           <div class="dash-btn-icon">➕</div>
           <div>
             <div class="dash-btn-title">New Order</div>
@@ -550,27 +550,27 @@
 
   <!-- BOTTOM NAVIGATION BAR -->
   <nav class="bottom-nav">
-    <button class="nav-item active" data-target="dashboard-view">
+    <button class="nav-item active" data-target="dashboard-view" onclick="window.switchView('dashboard-view')">
       <span class="icon">🏠</span>
       <span>Home</span>
     </button>
-    <button class="nav-item" data-target="sales-view" id="bottom-nav-new-order-btn">
+    <button class="nav-item" data-target="sales-view" id="bottom-nav-new-order-btn" onclick="window.openNewOrderForm()">
       <span class="icon">➕</span>
       <span>New Order</span>
     </button>
-    <button class="nav-item" data-target="shops-view">
+    <button class="nav-item" data-target="shops-view" onclick="window.switchView('shops-view')">
       <span class="icon">🏪</span>
       <span>Shops</span>
     </button>
-    <button class="nav-item" data-target="customers-view">
+    <button class="nav-item" data-target="customers-view" onclick="window.switchView('customers-view')">
       <span class="icon">👤</span>
       <span>Customers</span>
     </button>
-    <button class="nav-item" data-target="sales-view">
+    <button class="nav-item" data-target="sales-view" onclick="window.switchView('sales-view')">
       <span class="icon">💰</span>
       <span>Sales</span>
     </button>
-    <button class="nav-item" data-target="pending-view">
+    <button class="nav-item" data-target="pending-view" onclick="window.switchView('pending-view')">
       <span class="icon">💳</span>
       <span>Pending</span>
     </button>
@@ -915,7 +915,7 @@
     </div>
   </div>
 
-  <script src="db.js"></script>
-  <script src="app.js"></script>
+  <script src="db.js?v=2.0.1"></script>
+  <script src="app.js?v=2.0.1"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
  * Network-First Strategy to ensure immediate updates while preserving offline capability.
  */
 
-const CACHE_NAME = 'sigma-lures-v1';
+const CACHE_NAME = 'sigma-lures-v2';
 const ASSETS_TO_CACHE = [
   './index.html',
   './styles.css',

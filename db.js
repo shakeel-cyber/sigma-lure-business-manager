@@ -1,7 +1,6 @@
 /**
- * Sigma Lures - Offline-First IndexedDB Manager
- * Handles data persistence, safe non-destructive migrations, preloaded catalog, and JSON backups.
- * Exposed on window for universal browser compatibility.
+ * Sigma Lures - Offline-First IndexedDB Manager with LocalStorage Fallback
+ * Seamlessly handles data persistence across all environments (including Safari file:// mode).
  */
 
 const DB_NAME = 'SigmaLuresDB';
@@ -20,78 +19,196 @@ const DEFAULT_CATALOG = [
 ];
 
 let dbInstance = null;
+let useFallbackStore = false;
+const fallbackData = {
+  shops: [],
+  customers: [],
+  sales: [],
+  purchases: [],
+  plannedPurchases: [],
+  catalog: DEFAULT_CATALOG,
+  settings: []
+};
+
+function seedFallbackDemoData() {
+  try {
+    const cached = localStorage.getItem('sigma_fallback_data');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      Object.assign(fallbackData, parsed);
+      return;
+    }
+  } catch (e) {}
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  fallbackData.shops = [
+    { id: 'shop_demo_1', name: 'Apex Marine & Tackle', phone: '9876543210', address: 'Harbor Road, Kochi', createdAt: new Date().toISOString() },
+    { id: 'shop_demo_2', name: 'Oceanic Lures Depot', phone: '9123456789', address: 'Beach Road, Goa', createdAt: new Date().toISOString() }
+  ];
+  fallbackData.customers = [
+    { id: 'cust_demo_1', name: 'Rahul Sharma', phone: '9988776655', address: 'Mumbai', createdAt: new Date().toISOString() },
+    { id: 'cust_demo_2', name: 'Vikram Nair', phone: '9445566778', address: 'Chennai', createdAt: new Date().toISOString() }
+  ];
+  fallbackData.sales = [
+    {
+      id: 'sale_demo_101',
+      buyerType: 'shop',
+      buyerId: 'shop_demo_1',
+      buyerName: 'Apex Marine & Tackle',
+      customerType: 'wholesale',
+      date: todayStr,
+      items: [
+        { product: 'Brine', weight: '8g', quantity: 50, sellingPrice: 120, amount: 6000 },
+        { product: 'Drift', weight: '15g', quantity: 30, sellingPrice: 140, amount: 4200 }
+      ],
+      subtotal: 10200,
+      shipping: 200,
+      discount: 0,
+      freeJigs: 5,
+      total: 10400,
+      amountPaid: 7000,
+      pending: 3400,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: 'sale_demo_102',
+      buyerType: 'customer',
+      buyerId: 'cust_demo_1',
+      buyerName: 'Rahul Sharma',
+      customerType: 'retail',
+      date: todayStr,
+      items: [
+        { product: 'Apex', weight: '25g', quantity: 10, sellingPrice: 260, amount: 2600 },
+        { product: 'Pulse', weight: '40g', quantity: 5, sellingPrice: 300, amount: 1500 }
+      ],
+      subtotal: 4100,
+      shipping: 0,
+      discount: 100,
+      freeJigs: 2,
+      total: 4000,
+      amountPaid: 4000,
+      pending: 0,
+      createdAt: new Date().toISOString()
+    }
+  ];
+  fallbackData.purchases = [
+    {
+      id: 'purch_demo_1',
+      product: 'Stainless Hooks 4/0',
+      unitPrice: 10,
+      quantity: 500,
+      total: 5000,
+      supplier: 'Global Tackle Supplies',
+      date: todayStr,
+      createdAt: new Date().toISOString()
+    }
+  ];
+
+  persistFallbackData();
+}
+
+function persistFallbackData() {
+  try {
+    localStorage.setItem('sigma_fallback_data', JSON.stringify(fallbackData));
+  } catch (e) {}
+}
 
 function initDB() {
-  return new Promise((resolve, reject) => {
-    if (dbInstance) {
-      return resolve(dbInstance);
+  return new Promise((resolve) => {
+    if (dbInstance || useFallbackStore) {
+      return resolve(dbInstance || 'fallback');
     }
 
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-
-      if (!db.objectStoreNames.contains('shops')) {
-        const shopStore = db.createObjectStore('shops', { keyPath: 'id' });
-        shopStore.createIndex('name', 'name', { unique: false });
-        shopStore.createIndex('createdAt', 'createdAt', { unique: false });
+    try {
+      if (!window.indexedDB) {
+        useFallbackStore = true;
+        seedFallbackDemoData();
+        return resolve('fallback');
       }
 
-      if (!db.objectStoreNames.contains('customers')) {
-        const custStore = db.createObjectStore('customers', { keyPath: 'id' });
-        custStore.createIndex('name', 'name', { unique: false });
-        custStore.createIndex('createdAt', 'createdAt', { unique: false });
-      }
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-      if (!db.objectStoreNames.contains('sales')) {
-        const saleStore = db.createObjectStore('sales', { keyPath: 'id' });
-        saleStore.createIndex('buyerId', 'buyerId', { unique: false });
-        saleStore.createIndex('buyerType', 'buyerType', { unique: false });
-        saleStore.createIndex('date', 'date', { unique: false });
-        saleStore.createIndex('status', 'status', { unique: false });
-        saleStore.createIndex('pending', 'pending', { unique: false });
-        saleStore.createIndex('createdAt', 'createdAt', { unique: false });
-      }
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
 
-      if (!db.objectStoreNames.contains('purchases')) {
-        const purchStore = db.createObjectStore('purchases', { keyPath: 'id' });
-        purchStore.createIndex('date', 'date', { unique: false });
-        purchStore.createIndex('product', 'product', { unique: false });
-        purchStore.createIndex('supplier', 'supplier', { unique: false });
-      }
+        if (!db.objectStoreNames.contains('shops')) {
+          const shopStore = db.createObjectStore('shops', { keyPath: 'id' });
+          shopStore.createIndex('name', 'name', { unique: false });
+          shopStore.createIndex('createdAt', 'createdAt', { unique: false });
+        }
 
-      if (!db.objectStoreNames.contains('plannedPurchases')) {
-        const planStore = db.createObjectStore('plannedPurchases', { keyPath: 'id' });
-        planStore.createIndex('status', 'status', { unique: false });
-        planStore.createIndex('plannedDate', 'plannedDate', { unique: false });
-      }
+        if (!db.objectStoreNames.contains('customers')) {
+          const custStore = db.createObjectStore('customers', { keyPath: 'id' });
+          custStore.createIndex('name', 'name', { unique: false });
+          custStore.createIndex('createdAt', 'createdAt', { unique: false });
+        }
 
-      if (!db.objectStoreNames.contains('catalog')) {
-        const catStore = db.createObjectStore('catalog', { keyPath: 'id' });
-        catStore.createIndex('name', 'name', { unique: false });
-      }
+        if (!db.objectStoreNames.contains('sales')) {
+          const saleStore = db.createObjectStore('sales', { keyPath: 'id' });
+          saleStore.createIndex('buyerId', 'buyerId', { unique: false });
+          saleStore.createIndex('buyerType', 'buyerType', { unique: false });
+          saleStore.createIndex('date', 'date', { unique: false });
+          saleStore.createIndex('status', 'status', { unique: false });
+          saleStore.createIndex('pending', 'pending', { unique: false });
+          saleStore.createIndex('createdAt', 'createdAt', { unique: false });
+        }
 
-      if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'key' });
-      }
-    };
+        if (!db.objectStoreNames.contains('purchases')) {
+          const purchStore = db.createObjectStore('purchases', { keyPath: 'id' });
+          purchStore.createIndex('date', 'date', { unique: false });
+          purchStore.createIndex('product', 'product', { unique: false });
+          purchStore.createIndex('supplier', 'supplier', { unique: false });
+        }
 
-    request.onsuccess = async (event) => {
-      dbInstance = event.target.result;
+        if (!db.objectStoreNames.contains('plannedPurchases')) {
+          const planStore = db.createObjectStore('plannedPurchases', { keyPath: 'id' });
+          planStore.createIndex('status', 'status', { unique: false });
+          planStore.createIndex('plannedDate', 'plannedDate', { unique: false });
+        }
 
-      // Seed / update catalog safely
-      for (const item of DEFAULT_CATALOG) {
-        await saveItem('catalog', item);
-      }
+        if (!db.objectStoreNames.contains('catalog')) {
+          const catStore = db.createObjectStore('catalog', { keyPath: 'id' });
+          catStore.createIndex('name', 'name', { unique: false });
+        }
 
-      resolve(dbInstance);
-    };
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings', { keyPath: 'key' });
+        }
+      };
 
-    request.onerror = (event) => {
-      console.error('IndexedDB Initialization error:', event.target.error);
-      reject(event.target.error);
-    };
+      request.onsuccess = async (event) => {
+        dbInstance = event.target.result;
+
+        for (const item of DEFAULT_CATALOG) {
+          await saveItem('catalog', item);
+        }
+
+        try {
+          const existingShops = await getAll('shops');
+          if (existingShops.length === 0) {
+            seedFallbackDemoData();
+            for (const s of fallbackData.shops) await saveItem('shops', s);
+            for (const c of fallbackData.customers) await saveItem('customers', c);
+            for (const sl of fallbackData.sales) await saveItem('sales', sl);
+            for (const p of fallbackData.purchases) await saveItem('purchases', p);
+          }
+        } catch (err) {}
+
+        resolve(dbInstance);
+      };
+
+      request.onerror = (event) => {
+        console.warn('IndexedDB open blocked/error, using fallback store:', event);
+        useFallbackStore = true;
+        seedFallbackDemoData();
+        resolve('fallback');
+      };
+    } catch (e) {
+      console.warn('IndexedDB exception, using fallback store:', e);
+      useFallbackStore = true;
+      seedFallbackDemoData();
+      resolve('fallback');
+    }
   });
 }
 
@@ -103,6 +220,10 @@ function getStore(storeName, mode = 'readonly') {
 function getAll(storeName) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
+      if (useFallbackStore) {
+        const list = fallbackData[storeName] || [];
+        return resolve(JSON.parse(JSON.stringify(list)));
+      }
       const store = getStore(storeName, 'readonly');
       const request = store.getAll();
       request.onsuccess = () => resolve(request.result || []);
@@ -114,6 +235,11 @@ function getAll(storeName) {
 function getItem(storeName, id) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
+      if (useFallbackStore) {
+        const list = fallbackData[storeName] || [];
+        const found = list.find(item => item.id === id) || null;
+        return resolve(JSON.parse(JSON.stringify(found)));
+      }
       const store = getStore(storeName, 'readonly');
       const request = store.get(id);
       request.onsuccess = () => resolve(request.result || null);
@@ -125,6 +251,17 @@ function getItem(storeName, id) {
 function saveItem(storeName, item) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
+      if (useFallbackStore) {
+        if (!fallbackData[storeName]) fallbackData[storeName] = [];
+        const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
+        if (idx >= 0) {
+          fallbackData[storeName][idx] = item;
+        } else {
+          fallbackData[storeName].push(item);
+        }
+        persistFallbackData();
+        return resolve(item);
+      }
       const store = getStore(storeName, 'readwrite');
       const request = store.put(item);
       request.onsuccess = () => resolve(item);
@@ -136,6 +273,13 @@ function saveItem(storeName, item) {
 function deleteItem(storeName, id) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
+      if (useFallbackStore) {
+        if (fallbackData[storeName]) {
+          fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
+          persistFallbackData();
+        }
+        return resolve(true);
+      }
       const store = getStore(storeName, 'readwrite');
       const request = store.delete(id);
       request.onsuccess = () => resolve(true);
