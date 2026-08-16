@@ -658,6 +658,19 @@ function setupEventListeners() {
     window.confirmDeleteCustomer(state.activeCustomerId);
   });
 
+  const handleNewOrderClick = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    switchView('sales-view');
+    openNewSaleForm();
+  };
+
+  document.getElementById('dash-new-order-btn')?.addEventListener('click', handleNewOrderClick);
+  document.getElementById('bottom-nav-new-order-btn')?.addEventListener('click', handleNewOrderClick);
+  window.openNewOrderForm = handleNewOrderClick;
+
   // Sales View
   document.getElementById('toggle-new-sale-btn')?.addEventListener('click', () => {
     const form = document.getElementById('new-sale-form-container');
@@ -990,8 +1003,8 @@ async function handleAddShop(e) {
 
   if (state.currentBuyerType === 'shop') {
     populateBuyerDropdown();
-    const buyerSel = document.getElementById('sale-buyer-select');
-    if (buyerSel) buyerSel.value = shop.id;
+    const buyerInput = document.getElementById('sale-buyer-input');
+    if (buyerInput) buyerInput.value = shop.name;
   }
 
   renderShopsList();
@@ -1100,8 +1113,8 @@ async function handleAddCustomer(e) {
 
   if (state.currentBuyerType === 'customer') {
     populateBuyerDropdown();
-    const buyerSel = document.getElementById('sale-buyer-select');
-    if (buyerSel) buyerSel.value = customer.id;
+    const buyerInput = document.getElementById('sale-buyer-input');
+    if (buyerInput) buyerInput.value = customer.name;
   }
 
   renderCustomersList();
