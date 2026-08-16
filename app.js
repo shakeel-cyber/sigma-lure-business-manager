@@ -33,6 +33,9 @@ const state = {
   activeModal: null
 };
 
+let editSaleBuyerType = 'shop';
+let editSaleCustomerType = 'wholesale';
+
 // Global Order Row Expansion Toggle
 window.toggleOrderExpand = (saleId) => {
   const expandRow = document.getElementById(`order-expand-${saleId}`);
@@ -1433,8 +1436,6 @@ async function handleSaveSale() {
 }
 
 // Edit Sale Modal Variables & Logic
-let editSaleBuyerType = 'shop';
-let editSaleCustomerType = 'wholesale';
 
 function populateEditBuyerDatalist() {
   const datalist = document.getElementById('edit-buyer-datalist');
