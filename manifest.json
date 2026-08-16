@@ -1,23 +1,29 @@
 {
-  "name": "SIGMA LURES \u2014 Business Manager",
-  "short_name": "Sigma Manager",
-  "start_url": "./",
+  "name": "Sigma Lures Business Manager",
+  "short_name": "Sigma Lures",
+  "description": "Mobile-First Offline Business Operations Manager for Handmade Fishing Lures",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0a0a0c",
-  "theme_color": "#0a0a0c",
-  "description": "Offline-first business manager for Sigma Lures",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "logo.png",
+      "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "logo.png",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }
