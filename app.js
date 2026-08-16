@@ -1207,6 +1207,9 @@ function openNewSaleForm() {
   const rowsContainer = document.getElementById('product-rows-container');
   if (rowsContainer) rowsContainer.innerHTML = '';
 
+  const buyerInput = document.getElementById('sale-buyer-input');
+  if (buyerInput) buyerInput.value = '';
+
   const shipInput = document.getElementById('sale-shipping');
   if (shipInput) shipInput.value = '';
   const discInput = document.getElementById('sale-discount');
