@@ -173,7 +173,7 @@
           </div>
         </button>
 
-        <button class="dash-btn" id="dash-new-order-btn" onclick="window.openNewOrderModal()">
+        <button class="dash-btn" data-target="new-orders-view" id="dash-new-order-btn" onclick="window.switchView('new-orders-view')">
           <div class="dash-btn-icon">📋</div>
           <div>
             <div class="dash-btn-title">New Order</div>
@@ -517,6 +517,21 @@
       </div>
     </section>
 
+    <!-- NEW ORDERS QUEUE VIEW -->
+    <section id="new-orders-view" class="view-section">
+      <div class="card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <span>📋 New Customer Orders (Pre-Orders)</span>
+          <button class="btn btn-primary" onclick="window.openNewOrderModal()">➕ Add New Order</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
+          Log customer pre-orders here before making lures. Tap any order card below to expand and view full lure sizes, custom colors, or convert to a completed sale.
+        </p>
+      </div>
+
+      <div id="full-new-orders-list-container"></div>
+    </section>
+
     <!-- BACKUP & SETTINGS VIEW -->
     <section id="backup-view" class="view-section">
       <div class="card">
@@ -563,7 +578,7 @@
       <span class="icon">🏠</span>
       <span>Home</span>
     </button>
-    <button class="nav-item" id="bottom-nav-new-order-btn" onclick="window.openNewOrderModal()">
+    <button class="nav-item" data-target="new-orders-view" id="bottom-nav-new-order-btn" onclick="window.switchView('new-orders-view')">
       <span class="icon">📋</span>
       <span>New Order</span>
     </button>
@@ -1024,6 +1039,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

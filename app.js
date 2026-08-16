@@ -1210,33 +1210,123 @@ window.convertToSale = (orderId) => {
   showToast(`Order for ${order.buyerName} pre-filled in Sales Form!`);
 };
 
+window.toggleOrderAccordion = (orderId) => {
+  const detailsEl = document.getElementById(`order-details-${orderId}`);
+  const arrowEl = document.getElementById(`order-arrow-${orderId}`);
+  if (!detailsEl) return;
+
+  const isHidden = detailsEl.style.display === 'none' || detailsEl.style.display === '';
+  detailsEl.style.display = isHidden ? 'block' : 'none';
+  if (arrowEl) arrowEl.textContent = isHidden ? '▲ Tap to collapse order details' : '▼ Tap to view full order details';
+};
+
 function renderNewOrdersList() {
   const homeContainer = document.getElementById('home-new-orders-list-container');
   const fullContainer = document.getElementById('full-new-orders-list-container');
 
-  const ordersHtml = state.newOrders.length === 0
-    ? `<p style="color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 14px;">No pre-production orders logged yet.</p>`
-    : state.newOrders.map(o => {
-        const itemsSummary = (o.items || []).map(i => `${i.product} ${i.weight} × ${i.qty} pcs`).join(', ') || `${o.lureName || 'Lures'} × ${o.quantity || 1} pcs`;
+  if (state.newOrders.length === 0) {
+    const emptyHtml = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 24px;">No pre-production customer orders logged yet. Tap <strong>+ Add New Order</strong> above to log one!</p>`;
+    if (homeContainer) homeContainer.innerHTML = emptyHtml;
+    if (fullContainer) fullContainer.innerHTML = emptyHtml;
+    return;
+  }
 
-        return `
-          <div class="list-item">
-            <div class="list-item-header">
-              <span class="list-item-title">📋 ${escapeHTML(o.buyerName || o.customerName)} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${escapeHTML((o.buyerType || 'customer').toUpperCase())})</span></span>
-              <span class="badge badge-info">₹${(o.total || o.estimatedAmount || 0).toLocaleString('en-IN')}</span>
+  const ordersHtml = state.newOrders.map(o => {
+    const items = o.items || [];
+    const itemsSummary = items.map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ') || `${o.lureName || 'Lure'} × ${o.quantity || 1}`;
+
+    const itemsTableRows = items.map(i => `
+      <tr>
+        <td style="padding: 8px 6px; border-bottom: 1px solid var(--border-color); font-weight: 600; color: #ffffff;">${escapeHTML(i.product)} ${escapeHTML(i.weight)}</td>
+        <td style="padding: 8px 6px; border-bottom: 1px solid var(--border-color); text-align: center; color: var(--accent); font-weight: 700;">${i.qty} pcs</td>
+        <td style="padding: 8px 6px; border-bottom: 1px solid var(--border-color); text-align: right; color: var(--text-muted);">₹${(i.sellingPrice || 0).toLocaleString('en-IN')}</td>
+        <td style="padding: 8px 6px; border-bottom: 1px solid var(--border-color); text-align: right; font-weight: 700; color: #ffffff;">₹${(i.amount || 0).toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); margin-bottom: 16px; padding: 18px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+
+        <!-- Header Card Summary (Tap to Expand) -->
+        <div onclick="window.toggleOrderAccordion('${o.id}')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <div style="font-size: 1.15rem; font-weight: 900; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+              <span>📋 ${escapeHTML(o.buyerName || o.customerName)}</span>
+              <span class="badge badge-info" style="font-size: 0.72rem; font-weight: 700; padding: 3px 8px;">${escapeHTML((o.buyerType || 'customer').toUpperCase())}</span>
             </div>
-            <div class="list-item-sub">
-              Type: <strong>${(o.customerType || 'wholesale').toUpperCase()}</strong> • Items: <strong>${escapeHTML(itemsSummary)}</strong><br>
-              ${o.notes ? `Note: <em>${escapeHTML(o.notes)}</em><br>` : ''}
-              <span style="font-size:0.7rem; color:var(--text-muted);">Logged: ${new Date(o.createdAt).toLocaleDateString()}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-              <button class="btn btn-primary btn-sm" onclick="window.convertToSale('${o.id}')">⚡ Convert to Completed Sale</button>
-              <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteNewOrder('${o.id}')">✕</button>
+            <div style="font-size: 0.88rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+              Type: <strong style="color: var(--accent);">${(o.customerType || 'wholesale').toUpperCase()}</strong> • Items: <strong style="color: #ffffff;">${escapeHTML(itemsSummary)}</strong>
             </div>
           </div>
-        `;
-      }).join('');
+          <div style="text-align: right; padding-left: 10px;">
+            <div style="font-size: 1.3rem; font-weight: 900; color: var(--accent);">₹${(o.total || o.estimatedAmount || 0).toLocaleString('en-IN')}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Logged: ${new Date(o.createdAt).toLocaleDateString()}</div>
+          </div>
+        </div>
+
+        <!-- Toggle Hint Banner -->
+        <div onclick="window.toggleOrderAccordion('${o.id}')" style="cursor: pointer; margin-top: 12px; font-size: 0.8rem; color: var(--accent); font-weight: 700; text-align: center; border-top: 1px dashed var(--border-color); padding-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span id="order-arrow-${o.id}">▼ Tap to view full order details</span>
+        </div>
+
+        <!-- Expandable Details Accordion -->
+        <div id="order-details-${o.id}" style="display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color);">
+
+          <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Ordered Products Breakdown</div>
+          <div class="table-responsive" style="margin-bottom: 14px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+              <thead>
+                <tr style="background: var(--bg-input); color: var(--text-muted);">
+                  <th style="padding: 8px 6px; text-align: left;">Product</th>
+                  <th style="padding: 8px 6px; text-align: center;">Qty</th>
+                  <th style="padding: 8px 6px; text-align: right;">Price</th>
+                  <th style="padding: 8px 6px; text-align: right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsTableRows}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pricing Breakdown -->
+          <div style="background: var(--bg-input); padding: 14px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 14px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>Subtotal:</span>
+              <strong>₹${(o.subtotal || 0).toLocaleString('en-IN')}</strong>
+            </div>
+            ${o.shipping > 0 ? `
+              <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>Shipping:</span>
+                <strong>+₹${(o.shipping || 0).toLocaleString('en-IN')}</strong>
+              </div>` : ''}
+            ${o.discount > 0 ? `
+              <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>Discount:</span>
+                <strong>-₹${(o.discount || 0).toLocaleString('en-IN')}</strong>
+              </div>` : ''}
+            <div style="display: flex; justify-content: space-between; font-size: 1.05rem; font-weight: 800; color: var(--accent); border-top: 1px solid var(--border-color); padding-top: 8px; margin-top: 6px;">
+              <span>Estimated Total:</span>
+              <span>₹${(o.total || 0).toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+
+          <!-- Additional Notes Box -->
+          ${o.notes ? `
+            <div style="background: rgba(2, 132, 199, 0.12); border: 1px solid rgba(2, 132, 199, 0.35); padding: 12px; border-radius: 8px; font-size: 0.88rem; color: #38bdf8; margin-bottom: 14px; line-height: 1.4;">
+              <strong>📝 Color Specs & Notes:</strong> ${escapeHTML(o.notes)}
+            </div>` : ''}
+
+          <!-- Action Buttons -->
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px;">
+            <button class="btn btn-primary btn-sm" style="flex: 1; font-weight: 800; padding: 12px 14px; font-size: 0.9rem;" onclick="window.convertToSale('${o.id}')">⚡ Convert to Completed Sale</button>
+            <button class="btn btn-danger btn-sm" style="padding: 12px 16px;" onclick="window.confirmDeleteNewOrder('${o.id}')">✕ Delete</button>
+          </div>
+
+        </div>
+      </div>
+    `;
+  }).join('');
 
   if (homeContainer) homeContainer.innerHTML = ordersHtml;
   if (fullContainer) fullContainer.innerHTML = ordersHtml;
