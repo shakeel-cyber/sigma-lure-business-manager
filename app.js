@@ -4,7 +4,7 @@
  * Full Back Button, Edit & Delete Shop/Customer Features, Wholesale & Retail Catalogue Prices & Stealth Theme
  */
 
-const {
+import {
   initDB,
   getAll,
   getItem,
@@ -13,7 +13,7 @@ const {
   generateId,
   exportBackupJSON,
   importBackupJSON
-} = window;
+} from './db.js';
 
 // Application State
 const state = {
@@ -35,85 +35,6 @@ const state = {
 };
 
 // EXPOSE GLOBAL WINDOW HANDLERS IMMEDIATELY SO DYNAMIC ONCLICK BUTTONS ALWAYS WORK
-window.toggleOrderExpand = (saleId) => {
-  const el = document.getElementById(`order-expanded-${saleId}`);
-  if (el) {
-    el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
-  }
-};
-
-function renderOrderTableRowHtml(s) {
-  const itemsHtml = (s.items || []).map(item => {
-    const catItem = state.catalog.find(c => c.name === item.product && c.weight === item.weight);
-    const estPrice = catItem ? (s.customerType === 'wholesale' ? catItem.wholesalePrice : catItem.retailPrice) : item.sellingPrice;
-    return `
-      <tr>
-        <td><strong>${escapeHTML(item.product)}</strong></td>
-        <td style="text-align:center;">${escapeHTML(item.weight)}</td>
-        <td style="text-align:center;">${item.qty}</td>
-        <td style="text-align:right;">₹${item.sellingPrice}</td>
-        <td style="text-align:right; font-weight:700;">₹${item.amount.toLocaleString('en-IN')}</td>
-        <td style="text-align:right; color:var(--text-muted); font-size:0.78rem;">₹${estPrice}</td>
-      </tr>
-    `;
-  }).join('');
-
-  return `
-    <tr class="order-row-clickable" onclick="window.toggleOrderExpand('${s.id}')">
-      <td>${s.date}</td>
-      <td><strong>${s.invoiceNo || s.id.substring(0, 8)}</strong></td>
-      <td style="font-weight:700;">₹${s.total.toLocaleString('en-IN')}</td>
-      <td style="color: var(--success);">₹${s.paid.toLocaleString('en-IN')}</td>
-      <td style="color: var(--danger);">₹${s.pending.toLocaleString('en-IN')}</td>
-      <td>${getStatusBadgeHTML(s.status)}</td>
-      <td style="text-align:center; color: var(--accent); font-weight: 700; font-size:0.85rem;">▼ View</td>
-    </tr>
-    <tr id="order-expanded-${s.id}" style="display: none; background: rgba(0, 0, 0, 0.25);">
-      <td colspan="7" style="padding: 12px 14px;">
-        <div class="order-expand-card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid var(--border-color); padding-bottom:6px;">
-            <strong style="color: var(--accent);">Order #${s.invoiceNo || s.id.substring(0, 8)} Details</strong>
-            <span style="font-size:0.78rem; color:var(--text-muted);">Customer Type: <strong>${(s.customerType || 'wholesale').toUpperCase()}</strong></span>
-          </div>
-
-          <table class="inner-details-table">
-            <thead>
-              <tr>
-                <th style="text-align:left;">Lure Name</th>
-                <th style="text-align:center;">Weight</th>
-                <th style="text-align:center;">Qty</th>
-                <th style="text-align:right;">Unit Price</th>
-                <th style="text-align:right;">Line Total</th>
-                <th style="text-align:right;">Est. Catalog Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-
-          <div style="font-size:0.84rem; display:flex; flex-wrap:wrap; gap:12px; margin: 10px 0; padding: 8px 12px; background: var(--bg-input); border-radius:6px; border:1px solid var(--border-color);">
-            <div>Subtotal: <strong>₹${(s.subtotal || 0).toLocaleString('en-IN')}</strong></div>
-            <div>Shipping: <strong>₹${s.shipping || 0}</strong></div>
-            <div>Discount: <strong>₹${s.discount || 0}</strong></div>
-            <div>Free Jigs: <strong>${s.freeQty || 0} pcs</strong></div>
-            <div>Final Total: <strong style="color:var(--accent);">₹${s.total.toLocaleString('en-IN')}</strong></div>
-            <div>Paid: <strong style="color:var(--success);">₹${s.paid.toLocaleString('en-IN')}</strong></div>
-            <div>Pending: <strong style="color:var(--danger);">₹${s.pending.toLocaleString('en-IN')}</strong></div>
-          </div>
-
-          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.openEditSaleModal('${s.id}')">✏️ Edit Order</button>
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.openUpdatePaymentModal('${s.id}')">💳 Update Pay</button>
-            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); window.openInvoiceModal('${s.id}')">📄 Invoice</button>
-            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); window.confirmDeleteSale('${s.id}')">✕ Delete</button>
-          </div>
-        </div>
-      </td>
-    </tr>
-  `;
-}
-
 window.viewShopProfile = (shopId) => {
   const shop = state.shops.find(s => s.id === shopId);
   if (!shop) return;
@@ -149,9 +70,18 @@ window.viewShopProfile = (shopId) => {
   const tbody = document.getElementById('shop-history-tbody');
   if (tbody) {
     if (shopSales.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
     } else {
-      tbody.innerHTML = shopSales.map(s => renderOrderTableRowHtml(s)).join('');
+      tbody.innerHTML = shopSales.map(s => `
+        <tr style="cursor: pointer;" onclick="window.openInvoiceModal('${s.id}')">
+          <td>${s.date}</td>
+          <td>${s.invoiceNo || s.id.substring(0, 8)}</td>
+          <td>₹${s.total.toLocaleString('en-IN')}</td>
+          <td style="color: var(--success);">₹${s.paid.toLocaleString('en-IN')}</td>
+          <td style="color: var(--danger);">₹${s.pending.toLocaleString('en-IN')}</td>
+          <td>${getStatusBadgeHTML(s.status)}</td>
+        </tr>
+      `).join('');
     }
   }
 
@@ -194,9 +124,18 @@ window.viewCustomerProfile = (custId) => {
   const tbody = document.getElementById('cust-history-tbody');
   if (tbody) {
     if (custSales.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No sales recorded yet</td></tr>`;
     } else {
-      tbody.innerHTML = custSales.map(s => renderOrderTableRowHtml(s)).join('');
+      tbody.innerHTML = custSales.map(s => `
+        <tr style="cursor: pointer;" onclick="window.openInvoiceModal('${s.id}')">
+          <td>${s.date}</td>
+          <td>${s.invoiceNo || s.id.substring(0, 8)}</td>
+          <td>₹${s.total.toLocaleString('en-IN')}</td>
+          <td style="color: var(--success);">₹${s.paid.toLocaleString('en-IN')}</td>
+          <td style="color: var(--danger);">₹${s.pending.toLocaleString('en-IN')}</td>
+          <td>${getStatusBadgeHTML(s.status)}</td>
+        </tr>
+      `).join('');
     }
   }
 
@@ -658,19 +597,6 @@ function setupEventListeners() {
     window.confirmDeleteCustomer(state.activeCustomerId);
   });
 
-  const handleNewOrderClick = (e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    switchView('sales-view');
-    openNewSaleForm();
-  };
-
-  document.getElementById('dash-new-order-btn')?.addEventListener('click', handleNewOrderClick);
-  document.getElementById('bottom-nav-new-order-btn')?.addEventListener('click', handleNewOrderClick);
-  window.openNewOrderForm = handleNewOrderClick;
-
   // Sales View
   document.getElementById('toggle-new-sale-btn')?.addEventListener('click', () => {
     const form = document.getElementById('new-sale-form-container');
@@ -725,35 +651,6 @@ function setupEventListeners() {
   });
 
   document.getElementById('save-sale-btn')?.addEventListener('click', handleSaveSale);
-
-  // Edit Sale / Order Modal Listeners
-  document.getElementById('edit-sale-form')?.addEventListener('submit', handleSaveEditedSale);
-
-  document.querySelectorAll('.edit-buyer-type-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.edit-buyer-type-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      editSaleBuyerType = btn.getAttribute('data-type');
-      populateEditBuyerDatalist();
-    });
-  });
-
-  document.querySelectorAll('.edit-cust-type-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.edit-cust-type-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      editSaleCustomerType = btn.getAttribute('data-type');
-      calculateEditSaleTotals();
-    });
-  });
-
-  document.getElementById('edit-add-product-row-btn')?.addEventListener('click', () => {
-    addEditProductRow();
-  });
-
-  ['edit-sale-shipping', 'edit-sale-discount', 'edit-sale-free-jigs', 'edit-sale-amount-paid'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', calculateEditSaleTotals);
-  });
 
   // Purchases View
   document.getElementById('open-add-purchase-modal')?.addEventListener('click', () => {
@@ -1003,8 +900,8 @@ async function handleAddShop(e) {
 
   if (state.currentBuyerType === 'shop') {
     populateBuyerDropdown();
-    const buyerInput = document.getElementById('sale-buyer-input');
-    if (buyerInput) buyerInput.value = shop.name;
+    const buyerSel = document.getElementById('sale-buyer-select');
+    if (buyerSel) buyerSel.value = shop.id;
   }
 
   renderShopsList();
@@ -1050,18 +947,15 @@ function renderShopsList() {
   if (!container) return;
 
   const filter = (document.getElementById('shop-search-input')?.value || '').toLowerCase();
-  const shopsWithSales = state.shops.filter(s =>
-    s.name.toLowerCase().includes(filter) &&
-    state.sales.some(sl => sl.buyerType === 'shop' && sl.buyerId === s.id)
-  );
+  const shops = state.shops.filter(s => s.name.toLowerCase().includes(filter));
 
-  if (shopsWithSales.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No shops with sold orders found.</p>`;
+  if (shops.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No shops found.</p>`;
     return;
   }
 
   let html = '';
-  shopsWithSales.forEach(s => {
+  shops.forEach(s => {
     const shopSales = state.sales.filter(sl => sl.buyerType === 'shop' && sl.buyerId === s.id);
     const totalSales = shopSales.reduce((acc, sl) => acc + (sl.total || 0), 0);
     const totalPending = shopSales.reduce((acc, sl) => acc + (sl.pending || 0), 0);
@@ -1113,8 +1007,8 @@ async function handleAddCustomer(e) {
 
   if (state.currentBuyerType === 'customer') {
     populateBuyerDropdown();
-    const buyerInput = document.getElementById('sale-buyer-input');
-    if (buyerInput) buyerInput.value = customer.name;
+    const buyerSel = document.getElementById('sale-buyer-select');
+    if (buyerSel) buyerSel.value = customer.id;
   }
 
   renderCustomersList();
@@ -1160,18 +1054,15 @@ function renderCustomersList() {
   if (!container) return;
 
   const filter = (document.getElementById('customer-search-input')?.value || '').toLowerCase();
-  const custsWithSales = state.customers.filter(c =>
-    c.name.toLowerCase().includes(filter) &&
-    state.sales.some(sl => sl.buyerType === 'customer' && sl.buyerId === c.id)
-  );
+  const custs = state.customers.filter(c => c.name.toLowerCase().includes(filter));
 
-  if (custsWithSales.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No individual customers with sold orders found.</p>`;
+  if (custs.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No individual customers found.</p>`;
     return;
   }
 
   let html = '';
-  custsWithSales.forEach(c => {
+  custs.forEach(c => {
     const custSales = state.sales.filter(sl => sl.buyerType === 'customer' && sl.buyerId === c.id);
     const totalSales = custSales.reduce((acc, sl) => acc + (sl.total || 0), 0);
     const totalPending = custSales.reduce((acc, sl) => acc + (sl.pending || 0), 0);
@@ -1207,9 +1098,6 @@ function openNewSaleForm() {
   const rowsContainer = document.getElementById('product-rows-container');
   if (rowsContainer) rowsContainer.innerHTML = '';
 
-  const buyerInput = document.getElementById('sale-buyer-input');
-  if (buyerInput) buyerInput.value = '';
-
   const shipInput = document.getElementById('sale-shipping');
   if (shipInput) shipInput.value = '';
   const discInput = document.getElementById('sale-discount');
@@ -1225,12 +1113,18 @@ function openNewSaleForm() {
 }
 
 function populateBuyerDropdown() {
-  const datalist = document.getElementById('buyer-datalist');
-  if (!datalist) return;
+  const select = document.getElementById('sale-buyer-select');
+  if (!select) return;
 
   const list = state.currentBuyerType === 'shop' ? state.shops : state.customers;
-  datalist.innerHTML = list.map(item => `
-    <option value="${escapeHTML(item.name)}"></option>
+
+  if (list.length === 0) {
+    select.innerHTML = `<option value="">No ${state.currentBuyerType}s available - Please add one</option>`;
+    return;
+  }
+
+  select.innerHTML = list.map(item => `
+    <option value="${item.id}">${escapeHTML(item.name)}</option>
   `).join('');
 }
 
@@ -1327,7 +1221,7 @@ function calculateRowAmount(rowDiv) {
 }
 
 function updateAllProductRowPricing() {
-  document.querySelectorAll('.product-item-row:not(.edit-product-item-row)').forEach(rowDiv => {
+  document.querySelectorAll('.product-item-row').forEach(rowDiv => {
     const select = rowDiv.querySelector('.prod-select');
     const priceInput = rowDiv.querySelector('.prod-price');
     const selectedCat = state.catalog.find(c => c.id === select?.value);
@@ -1347,7 +1241,7 @@ function updateAllProductRowPricing() {
 
 function calculateSaleTotals() {
   let subtotal = 0;
-  document.querySelectorAll('.product-item-row:not(.edit-product-item-row)').forEach(rowDiv => {
+  document.querySelectorAll('.product-item-row').forEach(rowDiv => {
     const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
     const price = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
     subtotal += qty * price;
@@ -1369,46 +1263,20 @@ function calculateSaleTotals() {
 }
 
 async function handleSaveSale() {
-  const buyerName = document.getElementById('sale-buyer-input')?.value.trim();
-  if (!buyerName) {
-    showToast('Please enter or select a valid buyer name', 'danger');
+  const buyerId = document.getElementById('sale-buyer-select')?.value;
+  if (!buyerId) {
+    showToast('Please select a valid buyer', 'danger');
     return;
   }
 
-  let buyerObj = null;
-  if (state.currentBuyerType === 'shop') {
-    buyerObj = state.shops.find(s => s.name.toLowerCase() === buyerName.toLowerCase());
-    if (!buyerObj) {
-      buyerObj = {
-        id: generateId('shop'),
-        name: buyerName,
-        phone: '',
-        address: '',
-        createdAt: new Date().toISOString()
-      };
-      await saveItem('shops', buyerObj);
-      state.shops.push(buyerObj);
-    }
-  } else {
-    buyerObj = state.customers.find(c => c.name.toLowerCase() === buyerName.toLowerCase());
-    if (!buyerObj) {
-      buyerObj = {
-        id: generateId('cust'),
-        name: buyerName,
-        phone: '',
-        address: '',
-        createdAt: new Date().toISOString()
-      };
-      await saveItem('customers', buyerObj);
-      state.customers.push(buyerObj);
-    }
-  }
+  const buyerList = state.currentBuyerType === 'shop' ? state.shops : state.customers;
+  const buyerObj = buyerList.find(b => b.id === buyerId);
+  const buyerName = buyerObj ? buyerObj.name : 'Unknown';
 
-  const buyerId = buyerObj.id;
   const date = document.getElementById('sale-date')?.value || new Date().toISOString().split('T')[0];
 
   const items = [];
-  document.querySelectorAll('.product-item-row:not(.edit-product-item-row)').forEach(rowDiv => {
+  document.querySelectorAll('.product-item-row').forEach(rowDiv => {
     const catId = rowDiv.querySelector('.prod-select')?.value;
     const catObj = state.catalog.find(c => c.id === catId);
     if (catObj) {
@@ -1457,7 +1325,7 @@ async function handleSaveSale() {
     date,
     buyerType: state.currentBuyerType,
     buyerId,
-    buyerName: buyerObj.name,
+    buyerName,
     customerType: state.currentCustomerType,
     items,
     subtotal,
@@ -1475,298 +1343,11 @@ async function handleSaveSale() {
   await saveItem('sales', sale);
   state.sales.unshift(sale);
 
-let editSaleBuyerType = 'shop';
-let editSaleCustomerType = 'wholesale';
-
-window.openEditSaleModal = (saleId) => {
-  const sale = state.sales.find(s => s.id === saleId);
-  if (!sale) return;
-
-  const idInput = document.getElementById('edit-sale-id');
-  if (idInput) idInput.value = sale.id;
-
-  editSaleBuyerType = sale.buyerType || 'shop';
-  editSaleCustomerType = sale.customerType || 'wholesale';
-
-  document.querySelectorAll('.edit-buyer-type-btn').forEach(btn => {
-    if (btn.getAttribute('data-type') === editSaleBuyerType) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
-  });
-
-  document.querySelectorAll('.edit-cust-type-btn').forEach(btn => {
-    if (btn.getAttribute('data-type') === editSaleCustomerType) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
-  });
-
-  populateEditBuyerDatalist();
-
-  const buyerInput = document.getElementById('edit-sale-buyer-input');
-  if (buyerInput) buyerInput.value = sale.buyerName || '';
-
-  const dateInput = document.getElementById('edit-sale-date');
-  if (dateInput) dateInput.value = sale.date || new Date().toISOString().split('T')[0];
-
-  const shippingInput = document.getElementById('edit-sale-shipping');
-  if (shippingInput) shippingInput.value = sale.shipping || '';
-
-  const discountInput = document.getElementById('edit-sale-discount');
-  if (discountInput) discountInput.value = sale.discount || '';
-
-  const freeInput = document.getElementById('edit-sale-free-jigs');
-  if (freeInput) freeInput.value = sale.freeQty || '';
-
-  const paidInput = document.getElementById('edit-sale-amount-paid');
-  if (paidInput) paidInput.value = sale.paid !== undefined ? sale.paid : '';
-
-  const container = document.getElementById('edit-product-rows-container');
-  if (container) {
-    container.innerHTML = '';
-    if (sale.items && sale.items.length > 0) {
-      sale.items.forEach(item => addEditProductRow(item));
-    } else {
-      addEditProductRow();
-    }
-  }
-
-  calculateEditSaleTotals();
-  openModal('edit-sale-modal');
-};
-
-function populateEditBuyerDatalist() {
-  const datalist = document.getElementById('edit-buyer-datalist');
-  if (!datalist) return;
-  const list = editSaleBuyerType === 'shop' ? state.shops : state.customers;
-  datalist.innerHTML = list.map(item => `
-    <option value="${escapeHTML(item.name)}"></option>
-  `).join('');
-}
-
-function addEditProductRow(existingItem = null) {
-  const container = document.getElementById('edit-product-rows-container');
-  if (!container) return;
-
-  const rowId = `edit_prod_row_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-
-  const div = document.createElement('div');
-  div.className = 'product-item-row edit-product-item-row';
-  div.id = rowId;
-
-  const catOptions = state.catalog.map(cat => `
-    <option value="${cat.id}">${cat.name} ${cat.weight} (W: ₹${cat.wholesalePrice} | R: ₹${cat.retailPrice || cat.wholesalePrice})</option>
-  `).join('');
-
-  div.innerHTML = `
-    <div class="product-row-top">
-      <select class="form-select prod-select" style="flex: 1;">
-        <option value="">-- Select Product --</option>
-        ${catOptions}
-      </select>
-    </div>
-    <div class="product-row-bottom">
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">Qty</label>
-        <input type="number" class="form-input prod-qty" value="${existingItem ? existingItem.qty : 1}" min="1">
-      </div>
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">Selling Price</label>
-        <input type="number" class="form-input prod-price" placeholder="Price" value="${existingItem ? existingItem.sellingPrice : ''}" min="0" step="0.01">
-      </div>
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">Amount</label>
-        <div class="prod-amount" style="font-size: 0.85rem; font-weight:700; padding-top:8px;">₹0</div>
-      </div>
-      <div>
-        <label class="form-label" style="font-size:0.68rem;">&nbsp;</label>
-        <button type="button" class="remove-prod-btn">✕</button>
-      </div>
-    </div>
-  `;
-
-  container.appendChild(div);
-
-  const select = div.querySelector('.prod-select');
-  const qtyInput = div.querySelector('.prod-qty');
-  const priceInput = div.querySelector('.prod-price');
-  const removeBtn = div.querySelector('.remove-prod-btn');
-
-  if (existingItem) {
-    const matchedCat = state.catalog.find(c => c.name === existingItem.product && c.weight === existingItem.weight);
-    if (matchedCat && select) {
-      select.value = matchedCat.id;
-    }
-  }
-
-  select?.addEventListener('change', () => {
-    const selectedCat = state.catalog.find(c => c.id === select.value);
-    if (selectedCat && priceInput && !existingItem) {
-      if (editSaleCustomerType === 'wholesale') {
-        priceInput.value = selectedCat.wholesalePrice;
-        priceInput.readOnly = true;
-      } else {
-        priceInput.value = selectedCat.retailPrice || selectedCat.wholesalePrice;
-        priceInput.readOnly = false;
-      }
-    }
-    calculateRowAmount(div);
-    calculateEditSaleTotals();
-  });
-
-  qtyInput?.addEventListener('input', () => {
-    calculateRowAmount(div);
-    calculateEditSaleTotals();
-  });
-
-  priceInput?.addEventListener('input', () => {
-    calculateRowAmount(div);
-    calculateEditSaleTotals();
-  });
-
-  removeBtn?.addEventListener('click', () => {
-    div.remove();
-    calculateEditSaleTotals();
-  });
-
-  calculateRowAmount(div);
-}
-
-function calculateEditSaleTotals() {
-  let subtotal = 0;
-  document.querySelectorAll('.edit-product-item-row').forEach(rowDiv => {
-    const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
-    const price = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
-    subtotal += qty * price;
-  });
-
-  const shipping = parseFloat(document.getElementById('edit-sale-shipping')?.value) || 0;
-  const discount = parseFloat(document.getElementById('edit-sale-discount')?.value) || 0;
-  const finalTotal = Math.max(0, subtotal + shipping - discount);
-
-  const paidRaw = document.getElementById('edit-sale-amount-paid')?.value;
-  const paid = (paidRaw === '' || paidRaw === undefined) ? 0 : parseFloat(paidRaw) || 0;
-  const pending = Math.max(0, finalTotal - paid);
-
-  setText('edit-sale-calc-subtotal', `₹${subtotal.toLocaleString('en-IN')}`);
-  setText('edit-sale-calc-total', `₹${finalTotal.toLocaleString('en-IN')}`);
-  setText('edit-sale-calc-pending', `₹${pending.toLocaleString('en-IN')}`);
-}
-
-async function handleSaveEditedSale(e) {
-  e.preventDefault();
-  const saleId = document.getElementById('edit-sale-id')?.value;
-  const sale = state.sales.find(s => s.id === saleId);
-  if (!sale) return;
-
-  const buyerName = document.getElementById('edit-sale-buyer-input')?.value.trim();
-  if (!buyerName) {
-    showToast('Please enter a valid buyer name', 'danger');
-    return;
-  }
-
-  let buyerObj = null;
-  if (editSaleBuyerType === 'shop') {
-    buyerObj = state.shops.find(s => s.name.toLowerCase() === buyerName.toLowerCase());
-    if (!buyerObj) {
-      buyerObj = {
-        id: generateId('shop'),
-        name: buyerName,
-        phone: '',
-        address: '',
-        createdAt: new Date().toISOString()
-      };
-      await saveItem('shops', buyerObj);
-      state.shops.push(buyerObj);
-    }
-  } else {
-    buyerObj = state.customers.find(c => c.name.toLowerCase() === buyerName.toLowerCase());
-    if (!buyerObj) {
-      buyerObj = {
-        id: generateId('cust'),
-        name: buyerName,
-        phone: '',
-        address: '',
-        createdAt: new Date().toISOString()
-      };
-      await saveItem('customers', buyerObj);
-      state.customers.push(buyerObj);
-    }
-  }
-
-  const date = document.getElementById('edit-sale-date')?.value || sale.date;
-
-  const items = [];
-  document.querySelectorAll('.edit-product-item-row').forEach(rowDiv => {
-    const catId = rowDiv.querySelector('.prod-select')?.value;
-    const catObj = state.catalog.find(c => c.id === catId);
-    if (catObj) {
-      const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
-      const sellingPrice = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
-      if (qty > 0) {
-        items.push({
-          product: catObj.name,
-          weight: catObj.weight,
-          qty,
-          wholesalePrice: catObj.wholesalePrice,
-          sellingPrice,
-          amount: qty * sellingPrice
-        });
-      }
-    }
-  });
-
-  if (items.length === 0) {
-    showToast('Please add at least one product with quantity > 0', 'danger');
-    return;
-  }
-
-  const subtotal = items.reduce((acc, item) => acc + item.amount, 0);
-  const shipping = parseFloat(document.getElementById('edit-sale-shipping')?.value) || 0;
-  const discount = parseFloat(document.getElementById('edit-sale-discount')?.value) || 0;
-  const freeQty = parseInt(document.getElementById('edit-sale-free-jigs')?.value) || 0;
-  const total = Math.max(0, subtotal + shipping - discount);
-
-  const paidInputRaw = document.getElementById('edit-sale-amount-paid')?.value;
-  const paid = (paidInputRaw === '' || paidInputRaw === undefined) ? 0 : parseFloat(paidInputRaw) || 0;
-  const pending = Math.max(0, total - paid);
-
-  let status = 'Pending';
-  if (paid >= total && total > 0) {
-    status = 'Paid';
-  } else if (paid > 0 && paid < total) {
-    status = 'Partially Paid';
-  }
-
-  sale.buyerType = editSaleBuyerType;
-  sale.buyerId = buyerObj.id;
-  sale.buyerName = buyerObj.name;
-  sale.customerType = editSaleCustomerType;
-  sale.date = date;
-  sale.items = items;
-  sale.subtotal = subtotal;
-  sale.shipping = shipping;
-  sale.discount = discount;
-  sale.freeQty = freeQty;
-  sale.total = total;
-  sale.paid = paid;
-  sale.pending = pending;
-  sale.status = status;
-  sale.updatedAt = new Date().toISOString();
-
-  await saveItem('sales', sale);
-  closeModal('edit-sale-modal');
-  showToast('Order / Sale updated successfully!');
-
+  const saleForm = document.getElementById('new-sale-form-container');
+  if (saleForm) saleForm.style.display = 'none';
+  updateHeaderBackButton();
+  showToast('Sale saved successfully!');
   renderAllViews();
-  if (state.activeProfile === 'shop' && state.activeShopId) {
-    window.viewShopProfile(state.activeShopId);
-  } else if (state.activeProfile === 'customer' && state.activeCustomerId) {
-    window.viewCustomerProfile(state.activeCustomerId);
-  }
 }
 
 function renderSalesList() {
@@ -1799,7 +1380,6 @@ function renderSalesList() {
             <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 6px;">(Paid: ₹${s.paid.toLocaleString('en-IN')} | Pending: ₹${s.pending.toLocaleString('en-IN')})</span>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button class="btn btn-secondary btn-sm" onclick="window.openEditSaleModal('${s.id}')">✏️ Edit Order</button>
             <button class="btn btn-secondary btn-sm" onclick="window.openUpdatePaymentModal('${s.id}')">Update Pay</button>
             <button class="btn btn-primary btn-sm" onclick="window.openInvoiceModal('${s.id}')">Invoice</button>
             <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteSale('${s.id}')">✕</button>

@@ -20,7 +20,10 @@ const DEFAULT_CATALOG = [
 
 let dbInstance = null;
 
-function initDB() {
+/**
+ * Initialize IndexedDB securely
+ */
+export function initDB() {
   return new Promise((resolve, reject) => {
     if (dbInstance) {
       return resolve(dbInstance);
@@ -99,7 +102,7 @@ function getStore(storeName, mode = 'readonly') {
   return tx.objectStore(storeName);
 }
 
-function getAll(storeName) {
+export function getAll(storeName) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readonly');
@@ -110,7 +113,7 @@ function getAll(storeName) {
   });
 }
 
-function getItem(storeName, id) {
+export function getItem(storeName, id) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readonly');
@@ -121,7 +124,7 @@ function getItem(storeName, id) {
   });
 }
 
-function saveItem(storeName, item) {
+export function saveItem(storeName, item) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readwrite');
@@ -132,7 +135,7 @@ function saveItem(storeName, item) {
   });
 }
 
-function deleteItem(storeName, id) {
+export function deleteItem(storeName, id) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readwrite');
@@ -143,11 +146,11 @@ function deleteItem(storeName, id) {
   });
 }
 
-function generateId(prefix = 'id') {
+export function generateId(prefix = 'id') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 }
 
-async function exportBackupJSON() {
+export async function exportBackupJSON() {
   await initDB();
   const backup = {
     app: 'Sigma Lures Business Manager',
@@ -164,7 +167,7 @@ async function exportBackupJSON() {
   return JSON.stringify(backup, null, 2);
 }
 
-async function importBackupJSON(jsonContent) {
+export async function importBackupJSON(jsonContent) {
   await initDB();
   let parsed;
   try {
@@ -196,12 +199,3 @@ async function importBackupJSON(jsonContent) {
 
   return true;
 }
-
-window.initDB = initDB;
-window.getAll = getAll;
-window.getItem = getItem;
-window.saveItem = saveItem;
-window.deleteItem = deleteItem;
-window.generateId = generateId;
-window.exportBackupJSON = exportBackupJSON;
-window.importBackupJSON = importBackupJSON;
