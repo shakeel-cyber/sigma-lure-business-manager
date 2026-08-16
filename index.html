@@ -7,7 +7,7 @@
   
   <!-- PWA Meta Tags -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#0a0a0c">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Sigma Lures">
@@ -18,7 +18,7 @@
 </head>
 <body>
 
-  <!-- Toast Container -->
+  <!-- Toast Notifications Container -->
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Header -->
@@ -31,14 +31,10 @@
           <span>Business Manager</span>
         </div>
       </div>
-      <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
-        <button id="global-header-back-btn" class="btn btn-secondary btn-sm header-back-btn" style="display: none;">
+      <div class="header-actions">
+        <button id="global-header-back-btn" class="header-back-btn" style="display: none;">
           ← Back
         </button>
-        <div class="offline-badge">
-          <span class="dot-indicator"></span>
-          <span>Offline</span>
-        </div>
       </div>
     </div>
   </header>
@@ -52,7 +48,7 @@
     </div>
   </div>
 
-  <!-- Main Content Wrapper -->
+  <!-- Main Content Area -->
   <main class="main-content">
 
     <!-- Global Search Results View -->
@@ -68,9 +64,9 @@
       </div>
     </section>
 
-    <!-- DASHBOARD VIEW -->
+    <!-- DASHBOARD VIEW (HOME) -->
     <section id="dashboard-view" class="view-section active">
-      <!-- Monthly Quick Stats -->
+      <!-- Monthly Quick Stats Card -->
       <div class="card">
         <div class="card-title">
           <span>This Month Overview</span>
@@ -102,7 +98,7 @@
         </div>
       </div>
 
-      <!-- Quick Action Buttons -->
+      <!-- Business Hub Action Grid -->
       <div class="card-title">Business Hub</div>
       <div class="dashboard-grid">
         <button class="dash-btn" data-target="shops-view">
@@ -169,11 +165,19 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="backup-view" style="grid-column: span 2;">
+        <button class="dash-btn" data-target="backup-view">
           <div class="dash-btn-icon">💾</div>
           <div>
             <div class="dash-btn-title">Backup & Settings</div>
-            <div class="dash-btn-subtitle">Export data, catalog & restore</div>
+            <div class="dash-btn-subtitle">Export data & restore</div>
+          </div>
+        </button>
+
+        <button class="dash-btn" id="dash-new-order-btn">
+          <div class="dash-btn-icon">➕</div>
+          <div>
+            <div class="dash-btn-title">New Order</div>
+            <div class="dash-btn-subtitle">Create & log new order</div>
           </div>
         </button>
       </div>
@@ -192,12 +196,12 @@
         <div id="shops-list-container"></div>
       </div>
 
-      <!-- Shop Profile Container -->
+      <!-- Shop Profile Card -->
       <div id="shop-profile-card" class="card" style="display: none;">
         <div class="card-title">
           <span id="shop-profile-name">Shop Name</span>
           <div style="display: flex; gap: 6px;">
-            <button class="btn btn-secondary btn-sm" id="edit-current-shop-btn">✏️ Edit</button>
+            <button class="btn btn-secondary btn-sm" id="edit-current-shop-btn">✏️ Edit Name</button>
             <button class="btn btn-danger btn-sm" id="delete-current-shop-btn">✕ Delete</button>
             <button class="btn btn-secondary btn-sm" id="close-shop-profile">← Back</button>
           </div>
@@ -234,6 +238,7 @@
                 <th>Paid</th>
                 <th>Pending</th>
                 <th>Status</th>
+                <th style="text-align:center;">Details</th>
               </tr>
             </thead>
             <tbody id="shop-history-tbody"></tbody>
@@ -260,7 +265,7 @@
         <div class="card-title">
           <span id="customer-profile-name">Customer Name</span>
           <div style="display: flex; gap: 6px;">
-            <button class="btn btn-secondary btn-sm" id="edit-current-customer-btn">✏️ Edit</button>
+            <button class="btn btn-secondary btn-sm" id="edit-current-customer-btn">✏️ Edit Name</button>
             <button class="btn btn-danger btn-sm" id="delete-current-customer-btn">✕ Delete</button>
             <button class="btn btn-secondary btn-sm" id="close-customer-profile">← Back</button>
           </div>
@@ -297,6 +302,7 @@
                 <th>Paid</th>
                 <th>Pending</th>
                 <th>Status</th>
+                <th style="text-align:center;">Details</th>
               </tr>
             </thead>
             <tbody id="cust-history-tbody"></tbody>
@@ -316,7 +322,7 @@
         <!-- NEW SALE FORM CONTAINER -->
         <div id="new-sale-form-container" style="display: none; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div class="card-title" style="font-size: 0.95rem; color: var(--accent); margin: 0;">Create New Sale</div>
+            <div class="card-title" style="font-size: 0.95rem; color: var(--accent); margin: 0;">Create New Sale / Order</div>
             <button type="button" class="btn btn-secondary btn-sm" id="sale-form-top-back-btn">← Back to Sales</button>
           </div>
 
@@ -329,18 +335,19 @@
             </div>
           </div>
 
-          <!-- 2. Select Buyer -->
+          <!-- 2. Select / Enter Buyer Name -->
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label class="form-label" style="margin: 0;">Select Buyer</label>
+              <label class="form-label" style="margin: 0;">Buyer Name (Select or Type New)</label>
               <button type="button" class="btn btn-secondary btn-sm" id="sale-quick-add-buyer-btn">+ Add New</button>
             </div>
-            <select id="sale-buyer-select" class="form-select"></select>
+            <input type="text" id="sale-buyer-input" list="buyer-datalist" class="form-input" placeholder="Type or select shop/customer name..." autocomplete="off">
+            <datalist id="buyer-datalist"></datalist>
           </div>
 
           <!-- 3. Customer Type (Wholesale vs Retail) -->
           <div class="form-group">
-            <label class="form-label">Customer Type</label>
+            <label class="form-label">Customer Pricing Type</label>
             <div class="grid-2">
               <button type="button" class="btn btn-secondary cust-type-btn active" data-type="wholesale">Wholesale</button>
               <button type="button" class="btn btn-secondary cust-type-btn" data-type="retail">Retail</button>
@@ -461,34 +468,31 @@
     <section id="invoices-view" class="view-section">
       <div class="card">
         <div class="card-title">
-          <span>📄 Invoices</span>
+          <span>📄 Invoices Manager</span>
         </div>
         <div class="form-group">
-          <input type="text" id="invoice-search-input" class="form-input" placeholder="Search invoices by buyer name or invoice #...">
+          <input type="text" id="invoice-search-input" class="form-input" placeholder="Search by customer or invoice number...">
         </div>
         <div id="invoices-list-container"></div>
       </div>
     </section>
 
-    <!-- MONTHLY REPORTS VIEW -->
+    <!-- REPORTS VIEW -->
     <section id="reports-view" class="view-section">
       <div class="card">
         <div class="card-title">
-          <span>📊 Monthly Reports</span>
+          <span>📊 Monthly Financial Report</span>
         </div>
-
         <div class="form-group">
           <label class="form-label">Select Month</label>
           <input type="month" id="report-month-select" class="form-input">
         </div>
-
-        <div id="report-metrics-container"></div>
+        <div id="report-summary-container"></div>
       </div>
 
-      <!-- Month Comparison Card -->
       <div class="card">
         <div class="card-title">
-          <span>Month-over-Month Comparison</span>
+          <span>📈 Month-over-Month Comparison</span>
         </div>
         <div class="grid-2" style="margin-bottom: 12px;">
           <div>
@@ -550,6 +554,10 @@
       <span class="icon">🏠</span>
       <span>Home</span>
     </button>
+    <button class="nav-item" data-target="sales-view" id="bottom-nav-new-order-btn">
+      <span class="icon">➕</span>
+      <span>New Order</span>
+    </button>
     <button class="nav-item" data-target="shops-view">
       <span class="icon">🏪</span>
       <span>Shops</span>
@@ -580,15 +588,15 @@
       <form id="add-shop-form">
         <div class="form-group">
           <label class="form-label">Shop Name *</label>
-          <input type="text" id="shop-name-input" class="form-input" required placeholder="e.g. ABC Fishing Tackle">
+          <input type="text" id="shop-name-input" class="form-input" required placeholder="e.g. Apex Tackle Depot">
         </div>
         <div class="form-group">
           <label class="form-label">Phone Number</label>
-          <input type="tel" id="shop-phone-input" class="form-input" placeholder="e.g. +91 9876543210">
+          <input type="tel" id="shop-phone-input" class="form-input" placeholder="e.g. 9876543210">
         </div>
         <div class="form-group">
           <label class="form-label">Address / Location</label>
-          <textarea id="shop-address-input" class="form-textarea" rows="2" placeholder="City or full address"></textarea>
+          <input type="text" id="shop-address-input" class="form-input" placeholder="e.g. Harbor Road, Kochi">
         </div>
         <button type="submit" class="btn btn-primary btn-block">Save Shop</button>
       </form>
@@ -599,22 +607,22 @@
   <div id="edit-shop-modal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Edit Shop</div>
+        <div class="modal-title">Edit Shop Details</div>
         <button class="modal-close close-modal-btn">✕</button>
       </div>
       <form id="edit-shop-form">
         <input type="hidden" id="edit-shop-id">
         <div class="form-group">
           <label class="form-label">Shop Name *</label>
-          <input type="text" id="edit-shop-name-input" class="form-input" required placeholder="e.g. ABC Fishing Tackle">
+          <input type="text" id="edit-shop-name-input" class="form-input" required>
         </div>
         <div class="form-group">
           <label class="form-label">Phone Number</label>
-          <input type="tel" id="edit-shop-phone-input" class="form-input" placeholder="e.g. +91 9876543210">
+          <input type="tel" id="edit-shop-phone-input" class="form-input">
         </div>
         <div class="form-group">
           <label class="form-label">Address / Location</label>
-          <textarea id="edit-shop-address-input" class="form-textarea" rows="2" placeholder="City or full address"></textarea>
+          <input type="text" id="edit-shop-address-input" class="form-input">
         </div>
         <button type="submit" class="btn btn-primary btn-block">Update Shop</button>
       </form>
@@ -625,7 +633,7 @@
   <div id="add-customer-modal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Add New Customer</div>
+        <div class="modal-title">Add Direct Customer</div>
         <button class="modal-close close-modal-btn">✕</button>
       </div>
       <form id="add-customer-form">
@@ -635,11 +643,11 @@
         </div>
         <div class="form-group">
           <label class="form-label">Phone Number</label>
-          <input type="tel" id="customer-phone-input" class="form-input" placeholder="e.g. +91 9876543210">
+          <input type="tel" id="customer-phone-input" class="form-input" placeholder="e.g. 9123456789">
         </div>
         <div class="form-group">
-          <label class="form-label">Address / Location</label>
-          <textarea id="customer-address-input" class="form-textarea" rows="2" placeholder="City or delivery address"></textarea>
+          <label class="form-label">Location / City</label>
+          <input type="text" id="customer-address-input" class="form-input" placeholder="e.g. Goa">
         </div>
         <button type="submit" class="btn btn-primary btn-block">Save Customer</button>
       </form>
@@ -650,22 +658,22 @@
   <div id="edit-customer-modal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Edit Customer</div>
+        <div class="modal-title">Edit Customer Details</div>
         <button class="modal-close close-modal-btn">✕</button>
       </div>
       <form id="edit-customer-form">
         <input type="hidden" id="edit-customer-id">
         <div class="form-group">
           <label class="form-label">Customer Name *</label>
-          <input type="text" id="edit-customer-name-input" class="form-input" required placeholder="e.g. Rahul Sharma">
+          <input type="text" id="edit-customer-name-input" class="form-input" required>
         </div>
         <div class="form-group">
           <label class="form-label">Phone Number</label>
-          <input type="tel" id="edit-customer-phone-input" class="form-input" placeholder="e.g. +91 9876543210">
+          <input type="tel" id="edit-customer-phone-input" class="form-input">
         </div>
         <div class="form-group">
-          <label class="form-label">Address / Location</label>
-          <textarea id="edit-customer-address-input" class="form-textarea" rows="2" placeholder="City or delivery address"></textarea>
+          <label class="form-label">Location / City</label>
+          <input type="text" id="edit-customer-address-input" class="form-input">
         </div>
         <button type="submit" class="btn btn-primary btn-block">Update Customer</button>
       </form>
@@ -682,21 +690,21 @@
       <form id="add-purchase-form">
         <div class="form-group">
           <label class="form-label">Product / Material Name *</label>
-          <input type="text" id="purch-product" class="form-input" required placeholder="e.g. Lead Wire / Hooks / Resin">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Supplier / Shop</label>
-          <input type="text" id="purch-supplier" class="form-input" placeholder="e.g. National Hardware">
+          <input type="text" id="purch-product" class="form-input" required placeholder="e.g. Stainless Hooks 4/0">
         </div>
         <div class="grid-2">
           <div class="form-group">
-            <label class="form-label">Price per unit (₹)</label>
-            <input type="number" id="purch-price" class="form-input" step="0.01" min="0" required placeholder="0">
+            <label class="form-label">Unit Price (₹)</label>
+            <input type="number" id="purch-price" class="form-input" placeholder="0" min="0" step="0.01" required>
           </div>
           <div class="form-group">
             <label class="form-label">Quantity</label>
-            <input type="number" id="purch-qty" class="form-input" min="1" required value="1">
+            <input type="number" id="purch-qty" class="form-input" min="1" value="1" required>
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Supplier / Shop Name</label>
+          <input type="text" id="purch-supplier" class="form-input" placeholder="e.g. Global Fishing Supplies">
         </div>
         <div class="form-group">
           <label class="form-label">Date</label>
@@ -774,6 +782,105 @@
     </div>
   </div>
 
+  <!-- Edit Sale / Order Modal -->
+  <div id="edit-sale-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <div class="modal-title" style="color: var(--accent);">Edit Order / Sale</div>
+        <button class="modal-close close-modal-btn">✕</button>
+      </div>
+      <form id="edit-sale-form">
+        <input type="hidden" id="edit-sale-id">
+
+        <!-- 1. Buyer Type -->
+        <div class="form-group">
+          <label class="form-label">Buyer Type</label>
+          <div class="grid-2">
+            <button type="button" class="btn btn-secondary edit-buyer-type-btn" data-type="shop">Shop</button>
+            <button type="button" class="btn btn-secondary edit-buyer-type-btn" data-type="customer">Customer</button>
+          </div>
+        </div>
+
+        <!-- 2. Buyer Name -->
+        <div class="form-group">
+          <label class="form-label">Buyer Name</label>
+          <input type="text" id="edit-sale-buyer-input" list="edit-buyer-datalist" class="form-input" placeholder="Shop or Customer Name" required autocomplete="off">
+          <datalist id="edit-buyer-datalist"></datalist>
+        </div>
+
+        <!-- 3. Customer Type (Wholesale vs Retail) -->
+        <div class="form-group">
+          <label class="form-label">Customer Pricing Type</label>
+          <div class="grid-2">
+            <button type="button" class="btn btn-secondary edit-cust-type-btn" data-type="wholesale">Wholesale</button>
+            <button type="button" class="btn btn-secondary edit-cust-type-btn" data-type="retail">Retail</button>
+          </div>
+        </div>
+
+        <!-- 4. Sale Date -->
+        <div class="form-group">
+          <label class="form-label">Sale Date</label>
+          <input type="date" id="edit-sale-date" class="form-input" required>
+        </div>
+
+        <!-- 5. Dynamic Product Line Items -->
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="form-label" style="margin: 0;">Products Ordered</label>
+            <button type="button" class="btn btn-secondary btn-sm" id="edit-add-product-row-btn">+ Add Product</button>
+          </div>
+          <div id="edit-product-rows-container"></div>
+        </div>
+
+        <!-- 6. Summary Calculations -->
+        <div class="card" style="background: var(--bg-input); padding: 14px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+            <span>Subtotal:</span>
+            <span id="edit-sale-calc-subtotal" style="font-weight: 700;">₹0</span>
+          </div>
+
+          <div class="grid-2" style="margin-bottom: 10px;">
+            <div>
+              <label class="form-label">Shipping Charges</label>
+              <input type="number" id="edit-sale-shipping" class="form-input" placeholder="0" min="0">
+            </div>
+            <div>
+              <label class="form-label">Discount</label>
+              <input type="number" id="edit-sale-discount" class="form-input" placeholder="0" min="0">
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom: 10px;">
+            <div>
+              <label class="form-label">Free Jigs (Qty)</label>
+              <input type="number" id="edit-sale-free-jigs" class="form-input" placeholder="0" min="0">
+            </div>
+            <div>
+              <label class="form-label">Final Total</label>
+              <div id="edit-sale-calc-total" style="font-size: 1.2rem; font-weight: 800; color: var(--accent); padding-top: 8px;">₹0</div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div>
+              <label class="form-label">Amount Paid</label>
+              <input type="number" id="edit-sale-amount-paid" class="form-input" placeholder="0" min="0">
+            </div>
+            <div>
+              <label class="form-label">Pending Amount</label>
+              <div id="edit-sale-calc-pending" style="font-size: 1.1rem; font-weight: 800; color: var(--danger); padding-top: 8px;">₹0</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 14px;">
+          <button type="submit" class="btn btn-primary btn-block">Save Changes</button>
+          <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Invoice View / Print / Share Modal -->
   <div id="invoice-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 600px;">
@@ -808,6 +915,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script src="db.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

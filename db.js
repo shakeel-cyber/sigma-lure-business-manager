@@ -1,6 +1,7 @@
 /**
  * Sigma Lures - Offline-First IndexedDB Manager
  * Handles data persistence, safe non-destructive migrations, preloaded catalog, and JSON backups.
+ * Exposed on window for universal browser compatibility.
  */
 
 const DB_NAME = 'SigmaLuresDB';
@@ -20,10 +21,7 @@ const DEFAULT_CATALOG = [
 
 let dbInstance = null;
 
-/**
- * Initialize IndexedDB securely
- */
-export function initDB() {
+function initDB() {
   return new Promise((resolve, reject) => {
     if (dbInstance) {
       return resolve(dbInstance);
@@ -102,7 +100,7 @@ function getStore(storeName, mode = 'readonly') {
   return tx.objectStore(storeName);
 }
 
-export function getAll(storeName) {
+function getAll(storeName) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readonly');
@@ -113,7 +111,7 @@ export function getAll(storeName) {
   });
 }
 
-export function getItem(storeName, id) {
+function getItem(storeName, id) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readonly');
@@ -124,7 +122,7 @@ export function getItem(storeName, id) {
   });
 }
 
-export function saveItem(storeName, item) {
+function saveItem(storeName, item) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readwrite');
@@ -135,7 +133,7 @@ export function saveItem(storeName, item) {
   });
 }
 
-export function deleteItem(storeName, id) {
+function deleteItem(storeName, id) {
   return new Promise((resolve, reject) => {
     initDB().then(() => {
       const store = getStore(storeName, 'readwrite');
@@ -146,15 +144,15 @@ export function deleteItem(storeName, id) {
   });
 }
 
-export function generateId(prefix = 'id') {
+function generateId(prefix = 'id') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 }
 
-export async function exportBackupJSON() {
+async function exportBackupJSON() {
   await initDB();
   const backup = {
     app: 'Sigma Lures Business Manager',
-    version: '1.2',
+    version: '2.0',
     exportDate: new Date().toISOString(),
     shops: await getAll('shops'),
     customers: await getAll('customers'),
@@ -167,7 +165,7 @@ export async function exportBackupJSON() {
   return JSON.stringify(backup, null, 2);
 }
 
-export async function importBackupJSON(jsonContent) {
+async function importBackupJSON(jsonContent) {
   await initDB();
   let parsed;
   try {
@@ -199,3 +197,24 @@ export async function importBackupJSON(jsonContent) {
 
   return true;
 }
+
+// Expose globally on window
+window.initDB = initDB;
+window.getAll = getAll;
+window.getItem = getItem;
+window.saveItem = saveItem;
+window.deleteItem = deleteItem;
+window.generateId = generateId;
+window.exportBackupJSON = exportBackupJSON;
+window.importBackupJSON = importBackupJSON;
+
+window.SigmaDB = {
+  initDB,
+  getAll,
+  getItem,
+  saveItem,
+  deleteItem,
+  generateId,
+  exportBackupJSON,
+  importBackupJSON
+};
