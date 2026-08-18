@@ -72,7 +72,7 @@
           <span>This Month Overview</span>
           <span id="dash-month-label" style="font-size: 0.75rem; color: var(--accent);"></span>
         </div>
-        <div class="grid-2" style="margin-bottom: 10px;">
+        <div class="grid-3" style="margin-bottom: 10px;">
           <div class="stat-card">
             <span class="stat-label">Sales</span>
             <span class="stat-value accent" id="dash-month-sales">₹0</span>
@@ -80,6 +80,10 @@
           <div class="stat-card">
             <span class="stat-label">Purchases</span>
             <span class="stat-value warning" id="dash-month-purchases">₹0</span>
+          </div>
+          <div class="stat-card" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3);">
+            <span class="stat-label" style="color: var(--success); font-weight: 700;">Actual Profit</span>
+            <span class="stat-value success" id="dash-month-profit">₹0</span>
           </div>
         </div>
         <div class="grid-3">
@@ -189,6 +193,51 @@
           <button class="btn btn-primary btn-sm" id="open-add-new-order-modal">+ Log New Order</button>
         </div>
         <div id="home-new-orders-list-container"></div>
+      </div>
+
+      <!-- PROFIT PER LURE SECTION IN BUSINESS HUB -->
+      <div class="card" style="margin-top: 16px;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span>🎯 PROFIT PER LURE</span>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <button class="btn btn-sm" id="profit-filter-all" onclick="window.filterProfitType('all')" style="font-size: 0.7rem; padding: 2px 8px; background: var(--accent); color: #fff;">All</button>
+              <button class="btn btn-sm" id="profit-filter-wholesale" onclick="window.filterProfitType('wholesale')" style="font-size: 0.7rem; padding: 2px 8px; background: var(--bg-input); color: var(--text-muted);">Wholesale</button>
+              <button class="btn btn-sm" id="profit-filter-retail" onclick="window.filterProfitType('retail')" style="font-size: 0.7rem; padding: 2px 8px; background: var(--bg-input); color: var(--text-muted);">Retail</button>
+            </div>
+          </div>
+          <span class="badge badge-success" style="font-size: 0.85rem; padding: 4px 10px;" id="overall-total-profit-badge">Total Profit: ₹0.00</span>
+        </div>
+        
+        <div class="grid-2" style="margin-bottom: 14px;">
+          <div class="stat-card" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+            <span class="stat-label" style="color: var(--text-muted);">Overall Total Profit (Sales)</span>
+            <span class="stat-value success" id="overall-total-profit-val">₹0.00</span>
+          </div>
+          <div class="stat-card" style="background: rgba(255, 107, 0, 0.08); border-color: rgba(255, 107, 0, 0.25);">
+            <span class="stat-label" style="color: var(--text-muted);">Total Lures Sold</span>
+            <span class="stat-value accent" id="overall-total-lures-sold-val">0 pcs</span>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table" style="font-size: 0.85rem;">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Type</th>
+                <th style="text-align: right;">Selling Price</th>
+                <th style="text-align: right;">Prod. Cost</th>
+                <th style="text-align: right;">Profit / Lure</th>
+                <th style="text-align: right;">Sold</th>
+                <th style="text-align: right;">Total Profit</th>
+              </tr>
+            </thead>
+            <tbody id="profit-per-lure-tbody">
+              <!-- Dynamically rendered by renderProfitPerLure() -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 

@@ -1953,11 +1953,162 @@ function renderDashboardStats() {
   const totalPendingVal = thisMonthSales.reduce((acc, s) => acc + (s.pending || 0), 0);
   const totalPurchasesVal = thisMonthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
 
-  setText('dash-month-sales', `₹${totalSalesVal.toLocaleString('en-IN')}`);
-  setText('dash-month-purchases', `₹${totalPurchasesVal.toLocaleString('en-IN')}`);
-  setText('dash-month-received', `₹${totalReceivedVal.toLocaleString('en-IN')}`);
-  setText('dash-month-pending', `₹${totalPendingVal.toLocaleString('en-IN')}`);
+  let thisMonthProfit = 0;
+  thisMonthSales.forEach(s => {
+    if (s.items && Array.isArray(s.items)) {
+      const saleType = (s.customerType || 'wholesale').toLowerCase();
+      s.items.forEach(item => {
+        const prodName = (item.product || '').trim();
+        const weight = (item.weight || '').trim();
+        const cfg = LURE_PROFIT_CONFIG.find(c => c.model.toLowerCase() === prodName.toLowerCase() && c.weight.toLowerCase() === weight.toLowerCase());
+        if (cfg) {
+          const sellPrice = (item.sellingPrice !== undefined && item.sellingPrice !== null) ? item.sellingPrice : (saleType === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice);
+          const pUnit = sellPrice - cfg.productionCost;
+          const q = parseInt(item.qty || item.quantity || 0) || 0;
+          thisMonthProfit += q * pUnit;
+        }
+      });
+    }
+  });
+
+  setText('dash-month-sales', `₹${Math.round(totalSalesVal).toLocaleString('en-IN')}`);
+  setText('dash-month-purchases', `₹${Math.round(totalPurchasesVal).toLocaleString('en-IN')}`);
+  setText('dash-month-received', `₹${Math.round(totalReceivedVal).toLocaleString('en-IN')}`);
+  setText('dash-month-pending', `₹${Math.round(totalPendingVal).toLocaleString('en-IN')}`);
+  setText('dash-month-profit', `₹${Math.round(thisMonthProfit).toLocaleString('en-IN')}`);
   setText('dash-month-orders', thisMonthSales.length);
+
+  renderProfitPerLure();
+}
+
+// Baseline Lure Production Cost & Profit Configuration (Wholesale & Retail - Rounded Costs)
+const LURE_PROFIT_CONFIG = [
+  { model: 'Brine', weight: '8g',  wholesalePrice: 120, retailPrice: 170, productionCost: 50 },
+  { model: 'Drift', weight: '10g', wholesalePrice: 130, retailPrice: 180, productionCost: 50 },
+  { model: 'Drift', weight: '15g', wholesalePrice: 140, retailPrice: 190, productionCost: 50 },
+  { model: 'Drift', weight: '20g', wholesalePrice: 150, retailPrice: 200, productionCost: 50 },
+  { model: 'Apex',  weight: '25g', wholesalePrice: 200, retailPrice: 260, productionCost: 74 },
+  { model: 'Apex',  weight: '35g', wholesalePrice: 210, retailPrice: 280, productionCost: 77 },
+  { model: 'Pulse', weight: '40g', wholesalePrice: 230, retailPrice: 300, productionCost: 78 },
+  { model: 'Pulse', weight: '50g', wholesalePrice: 250, retailPrice: 320, productionCost: 81 }
+];
+
+let currentProfitFilter = 'all';
+
+window.filterProfitType = (type) => {
+  currentProfitFilter = type;
+  ['all', 'wholesale', 'retail'].forEach(t => {
+    const btn = document.getElementById(`profit-filter-${t}`);
+    if (btn) {
+      if (t === type) {
+        btn.style.background = 'var(--accent)';
+        btn.style.color = '#ffffff';
+      } else {
+        btn.style.background = 'var(--bg-input)';
+        btn.style.color = 'var(--text-muted)';
+      }
+    }
+  });
+  renderProfitPerLure(currentProfitFilter);
+};
+
+function renderProfitPerLure(filterType = currentProfitFilter) {
+  const tbody = document.getElementById('profit-per-lure-tbody');
+  if (!tbody) return;
+
+  const modelStats = {};
+  LURE_PROFIT_CONFIG.forEach(cfg => {
+    ['wholesale', 'retail'].forEach(type => {
+      const key = `${cfg.model}_${cfg.weight}_${type}`.toLowerCase();
+      const sellingPrice = type === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice;
+      modelStats[key] = {
+        model: cfg.model,
+        weight: cfg.weight,
+        type: type,
+        sellingPrice: sellingPrice,
+        productionCost: cfg.productionCost,
+        profitPerLure: sellingPrice - cfg.productionCost,
+        totalSold: 0,
+        totalProfit: 0
+      };
+    });
+  });
+
+  state.sales.forEach(sale => {
+    if (!sale.items || !Array.isArray(sale.items)) return;
+    const saleType = (sale.customerType || 'wholesale').toLowerCase();
+
+    sale.items.forEach(item => {
+      const prodName = (item.product || '').trim();
+      const weight = (item.weight || '').trim();
+      const key = `${prodName}_${weight}_${saleType}`.toLowerCase();
+      const qty = parseInt(item.qty || item.quantity || 0) || 0;
+
+      if (modelStats[key]) {
+        const itemSellingPrice = (item.sellingPrice !== undefined && item.sellingPrice !== null)
+          ? item.sellingPrice
+          : modelStats[key].sellingPrice;
+        const profitPerLure = itemSellingPrice - modelStats[key].productionCost;
+
+        modelStats[key].totalSold += qty;
+        modelStats[key].totalProfit += qty * profitPerLure;
+      }
+    });
+  });
+
+  let overallProfit = 0;
+  let overallLuresSold = 0;
+
+  const keysToRender = [];
+  LURE_PROFIT_CONFIG.forEach(cfg => {
+    if (filterType === 'all' || filterType === 'wholesale') {
+      keysToRender.push(`${cfg.model}_${cfg.weight}_wholesale`.toLowerCase());
+    }
+    if (filterType === 'all' || filterType === 'retail') {
+      keysToRender.push(`${cfg.model}_${cfg.weight}_retail`.toLowerCase());
+    }
+  });
+
+  const rowsHtml = keysToRender.map(key => {
+    const stat = modelStats[key];
+    overallProfit += stat.totalProfit;
+    overallLuresSold += stat.totalSold;
+
+    const typeBadge = stat.type === 'wholesale'
+      ? `<span class="badge badge-info" style="font-size:0.68rem; padding: 2px 6px;">WHOLESALE</span>`
+      : `<span class="badge badge-warning" style="font-size:0.68rem; padding: 2px 6px;">RETAIL</span>`;
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight: 700; color: #ffffff;">${escapeHTML(stat.model)} ${escapeHTML(stat.weight)}</div>
+        </td>
+        <td>${typeBadge}</td>
+        <td style="text-align: right; color: var(--text-muted); font-weight: 600;">
+          ₹${Math.round(stat.sellingPrice).toLocaleString('en-IN')}
+        </td>
+        <td style="text-align: right; color: var(--text-muted); font-weight: 600;">
+          ₹${Math.round(stat.productionCost).toLocaleString('en-IN')}
+        </td>
+        <td style="text-align: right; font-weight: 800; color: var(--success);">
+          ₹${Math.round(stat.profitPerLure).toLocaleString('en-IN')}
+        </td>
+        <td style="text-align: right; font-weight: 700; color: var(--accent);">
+          ${stat.totalSold.toLocaleString('en-IN')} pcs
+        </td>
+        <td style="text-align: right; font-weight: 900; color: #ffffff;">
+          ₹${Math.round(stat.totalProfit).toLocaleString('en-IN')}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = rowsHtml;
+
+  const formattedProfitStr = `₹${Math.round(overallProfit).toLocaleString('en-IN')}`;
+  setText('overall-total-profit-val', formattedProfitStr);
+  setText('overall-total-profit-badge', `Total Profit: ${formattedProfitStr}`);
+  setText('overall-total-lures-sold-val', `${overallLuresSold.toLocaleString('en-IN')} pcs`);
 }
 
 async function handleAddShop(e) {
@@ -2357,93 +2508,124 @@ function calculateSaleTotals() {
   setText('sale-calc-pending', `₹${pending.toLocaleString('en-IN')}`);
 }
 
-async function handleSaveSale() {
-  const buyerId = document.getElementById('sale-buyer-select')?.value;
-  if (!buyerId) {
-    showToast('Please select a valid buyer', 'danger');
-    return;
-  }
+window.handleSaveSale = async function handleSaveSale() {
+  try {
+    let buyerId = document.getElementById('sale-buyer-select')?.value || '';
+    let buyerName = '';
 
-  const buyerList = state.currentBuyerType === 'shop' ? state.shops : state.customers;
-  const buyerObj = buyerList.find(b => b.id === buyerId);
-  const buyerName = buyerObj ? buyerObj.name : 'Unknown';
-
-  const date = document.getElementById('sale-date')?.value || new Date().toISOString().split('T')[0];
-
-  const items = [];
-  document.querySelectorAll('#product-rows-container .product-item-row').forEach(rowDiv => {
-    const catId = rowDiv.querySelector('.prod-select')?.value;
-    const catObj = state.catalog.find(c => c.id === catId);
-    if (catObj) {
-      const qty = parseInt(rowDiv.querySelector('.prod-qty')?.value) || 0;
-      const sellingPrice = parseFloat(rowDiv.querySelector('.prod-price')?.value) || 0;
-      if (qty > 0) {
-        items.push({
-          product: catObj.name,
-          weight: catObj.weight,
-          qty,
-          wholesalePrice: catObj.wholesalePrice,
-          sellingPrice,
-          amount: qty * sellingPrice
-        });
+    const buyerSelectEl = document.getElementById('sale-buyer-select');
+    if (!buyerId && buyerSelectEl && buyerSelectEl.options && buyerSelectEl.options.length > 0) {
+      for (let opt of buyerSelectEl.options) {
+        if (opt.value) {
+          buyerId = opt.value;
+          buyerSelectEl.value = opt.value;
+          break;
+        }
       }
     }
-  });
 
-  if (items.length === 0) {
-    showToast('Please add at least one product with quantity > 0', 'danger');
-    return;
+    if (!buyerId) {
+      showToast('Please select or add a buyer first', 'danger');
+      return;
+    }
+
+    const buyerList = state.currentBuyerType === 'shop' ? state.shops : state.customers;
+    const buyerObj = buyerList.find(b => b.id === buyerId || b.name === buyerId);
+    if (buyerObj) {
+      buyerId = buyerObj.id;
+      buyerName = buyerObj.name;
+    } else {
+      buyerName = buyerId;
+    }
+
+    const date = document.getElementById('sale-date')?.value || new Date().toISOString().split('T')[0];
+
+    const items = [];
+    document.querySelectorAll('#product-rows-container .product-item-row').forEach(rowDiv => {
+      let catId = rowDiv.querySelector('.prod-select')?.value;
+      let catObj = state.catalog.find(c => c.id === catId);
+      
+      if (!catObj && state.catalog.length > 0) {
+        catObj = state.catalog[0];
+      }
+
+      if (catObj) {
+        const qtyInput = rowDiv.querySelector('.prod-qty')?.value;
+        const qty = parseInt(qtyInput) || 1;
+        const priceInputVal = rowDiv.querySelector('.prod-price')?.value;
+        const sellingPrice = parseFloat(priceInputVal) || (state.currentCustomerType === 'wholesale' ? catObj.wholesalePrice : (catObj.retailPrice || catObj.wholesalePrice));
+        
+        if (qty > 0) {
+          items.push({
+            product: catObj.name,
+            weight: catObj.weight,
+            qty,
+            wholesalePrice: catObj.wholesalePrice,
+            sellingPrice,
+            amount: qty * sellingPrice
+          });
+        }
+      }
+    });
+
+    if (items.length === 0) {
+      showToast('Please select at least one product', 'danger');
+      return;
+    }
+
+    const subtotal = items.reduce((acc, item) => acc + item.amount, 0);
+    const shipping = parseFloat(document.getElementById('sale-shipping')?.value) || 0;
+    const discount = parseFloat(document.getElementById('sale-discount')?.value) || 0;
+    const freeQty = parseInt(document.getElementById('sale-free-jigs')?.value) || 0;
+    const total = Math.max(0, subtotal + shipping - discount);
+
+    const paidInputRaw = document.getElementById('sale-amount-paid')?.value;
+    const paid = (paidInputRaw === '' || paidInputRaw === undefined || paidInputRaw === null) ? 0 : (parseFloat(paidInputRaw) || 0);
+    const pending = Math.max(0, total - paid);
+
+    let status = 'Pending';
+    if (paid >= total && total > 0) {
+      status = 'Paid';
+    } else if (paid > 0 && paid < total) {
+      status = 'Partially Paid';
+    }
+
+    const invoiceNo = `SIG-${Date.now().toString().slice(-6)}`;
+
+    const sale = {
+      id: generateId('sale'),
+      invoiceNo,
+      date,
+      buyerType: state.currentBuyerType,
+      buyerId,
+      buyerName,
+      customerType: state.currentCustomerType,
+      items,
+      subtotal,
+      shipping,
+      discount,
+      freeQty,
+      total,
+      paid,
+      pending,
+      status,
+      paymentHistory: paid > 0 ? [{ date: new Date().toISOString(), amount: paid }] : [],
+      createdAt: new Date().toISOString()
+    };
+
+    await saveItem('sales', sale);
+    state.sales.unshift(sale);
+
+    const saleForm = document.getElementById('new-sale-form-container');
+    if (saleForm) saleForm.style.display = 'none';
+    updateHeaderBackButton();
+    showToast('Sale saved successfully!');
+    renderAllViews();
+  } catch (err) {
+    console.error('Error saving sale:', err);
+    showToast('Failed to save sale: ' + (err.message || err), 'danger');
   }
-
-  const subtotal = items.reduce((acc, item) => acc + item.amount, 0);
-  const shipping = parseFloat(document.getElementById('sale-shipping')?.value) || 0;
-  const discount = parseFloat(document.getElementById('sale-discount')?.value) || 0;
-  const freeQty = parseInt(document.getElementById('sale-free-jigs')?.value) || 0;
-  const total = Math.max(0, subtotal + shipping - discount);
-
-  const paidInputRaw = document.getElementById('sale-amount-paid')?.value;
-  const paid = (paidInputRaw === '' || paidInputRaw === undefined) ? 0 : parseFloat(paidInputRaw) || 0;
-  const pending = Math.max(0, total - paid);
-
-  let status = 'Pending';
-  if (paid >= total && total > 0) {
-    status = 'Paid';
-  } else if (paid > 0 && paid < total) {
-    status = 'Partially Paid';
-  }
-
-  const invoiceNo = `SIG-${Date.now().toString().slice(-6)}`;
-
-  const sale = {
-    id: generateId('sale'),
-    invoiceNo,
-    date,
-    buyerType: state.currentBuyerType,
-    buyerId,
-    buyerName,
-    customerType: state.currentCustomerType,
-    items,
-    subtotal,
-    shipping,
-    discount,
-    freeQty,
-    total,
-    paid,
-    pending,
-    status,
-    paymentHistory: paid > 0 ? [{ date: new Date().toISOString(), amount: paid }] : [],
-    createdAt: new Date().toISOString()
-  };
-
-  await saveItem('sales', sale);
-  state.sales.unshift(sale);
-
-  const saleForm = document.getElementById('new-sale-form-container');
-  if (saleForm) saleForm.style.display = 'none';
-  updateHeaderBackButton();
-  showToast('Sale saved successfully!');
-  renderAllViews();
-}
+};
 
 function renderSalesList() {
   const container = document.getElementById('sales-list-container');
