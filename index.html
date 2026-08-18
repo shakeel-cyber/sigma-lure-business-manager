@@ -344,14 +344,13 @@
             </div>
           </div>
 
-          <!-- 2. Select / Enter Buyer Name -->
+          <!-- 2. Select Buyer -->
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label class="form-label" style="margin: 0;">Buyer Name (Select or Type New)</label>
-              <button type="button" class="btn btn-secondary btn-sm" id="sale-quick-add-buyer-btn">+ Add New</button>
+              <label class="form-label" style="margin: 0;">Select Buyer *</label>
+              <button type="button" class="btn btn-secondary btn-sm" id="sale-quick-add-buyer-btn">+ Add Buyer</button>
             </div>
-            <input type="text" id="sale-buyer-input" list="buyer-datalist" class="form-input" placeholder="Type or select shop/customer name..." autocomplete="off">
-            <datalist id="buyer-datalist"></datalist>
+            <select id="sale-buyer-select" class="form-select" required></select>
           </div>
 
           <!-- 3. Customer Type (Wholesale vs Retail) -->
@@ -1039,6 +1038,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
