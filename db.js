@@ -35,74 +35,21 @@ function seedFallbackDemoData() {
     const cached = localStorage.getItem('sigma_fallback_data');
     if (cached) {
       const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed.shops)) parsed.shops = parsed.shops.filter(s => !s.id || !s.id.startsWith('shop_demo_'));
+      if (Array.isArray(parsed.customers)) parsed.customers = parsed.customers.filter(c => !c.id || !c.id.startsWith('cust_demo_'));
+      if (Array.isArray(parsed.sales)) parsed.sales = parsed.sales.filter(s => !s.id || !s.id.startsWith('sale_demo_'));
+      if (Array.isArray(parsed.purchases)) parsed.purchases = parsed.purchases.filter(p => !p.id || !p.id.startsWith('purch_demo_'));
       Object.assign(fallbackData, parsed);
       return;
     }
   } catch (e) {}
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  fallbackData.shops = [
-    { id: 'shop_demo_1', name: 'Apex Marine & Tackle', phone: '9876543210', address: 'Harbor Road, Kochi', createdAt: new Date().toISOString() },
-    { id: 'shop_demo_2', name: 'Oceanic Lures Depot', phone: '9123456789', address: 'Beach Road, Goa', createdAt: new Date().toISOString() }
-  ];
-  fallbackData.customers = [
-    { id: 'cust_demo_1', name: 'Rahul Sharma', phone: '9988776655', address: 'Mumbai', createdAt: new Date().toISOString() },
-    { id: 'cust_demo_2', name: 'Vikram Nair', phone: '9445566778', address: 'Chennai', createdAt: new Date().toISOString() }
-  ];
-  fallbackData.sales = [
-    {
-      id: 'sale_demo_101',
-      buyerType: 'shop',
-      buyerId: 'shop_demo_1',
-      buyerName: 'Apex Marine & Tackle',
-      customerType: 'wholesale',
-      date: todayStr,
-      items: [
-        { product: 'Brine', weight: '8g', quantity: 50, sellingPrice: 120, amount: 6000 },
-        { product: 'Drift', weight: '15g', quantity: 30, sellingPrice: 140, amount: 4200 }
-      ],
-      subtotal: 10200,
-      shipping: 200,
-      discount: 0,
-      freeJigs: 5,
-      total: 10400,
-      amountPaid: 7000,
-      pending: 3400,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'sale_demo_102',
-      buyerType: 'customer',
-      buyerId: 'cust_demo_1',
-      buyerName: 'Rahul Sharma',
-      customerType: 'retail',
-      date: todayStr,
-      items: [
-        { product: 'Apex', weight: '25g', quantity: 10, sellingPrice: 260, amount: 2600 },
-        { product: 'Pulse', weight: '40g', quantity: 5, sellingPrice: 300, amount: 1500 }
-      ],
-      subtotal: 4100,
-      shipping: 0,
-      discount: 100,
-      freeJigs: 2,
-      total: 4000,
-      amountPaid: 4000,
-      pending: 0,
-      createdAt: new Date().toISOString()
-    }
-  ];
-  fallbackData.purchases = [
-    {
-      id: 'purch_demo_1',
-      product: 'Stainless Hooks 4/0',
-      unitPrice: 10,
-      quantity: 500,
-      total: 5000,
-      supplier: 'Global Tackle Supplies',
-      date: todayStr,
-      createdAt: new Date().toISOString()
-    }
-  ];
+  fallbackData.shops = [];
+  fallbackData.customers = [];
+  fallbackData.sales = [];
+  fallbackData.purchases = [];
+  fallbackData.plannedPurchases = [];
+  fallbackData.settings = [];
 
   persistFallbackData();
 }
