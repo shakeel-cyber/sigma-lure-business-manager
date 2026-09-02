@@ -25,6 +25,19 @@ const DEFAULT_CATALOG = [
 
 let dbInstance = null;
 let useFallbackStore = false;
+
+// Immediate Top-Level Navigation Handler (Guarantees zero-delay view switching)
+window.switchView = function(viewId) {
+  document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-target') === viewId);
+  });
+  const activeSec = document.getElementById(viewId);
+  if (activeSec) {
+    activeSec.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+};
 const fallbackData = {
   shops: [],
   customers: [],
