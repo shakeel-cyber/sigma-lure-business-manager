@@ -3,11 +3,11 @@
  * Caches core application assets while strictly preserving local database integrity.
  */
 
-const CACHE_NAME = 'sigma-lures-v25';
+const CACHE_NAME = 'sigma-lures-v30';
 const ASSETS_TO_CACHE = [
   './index.html',
   './styles.css',
-  './app.js?v=25',
+  './app.js',
   './logo.png',
   './manifest.json',
   './icon-192.png',

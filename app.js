@@ -3594,7 +3594,9 @@ if (document.readyState === 'loading') {
 
 function registerServiceWorker() {
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js').catch(err => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      if (reg) reg.update();
+    }).catch(err => {
       console.warn('SW registration skipped:', err);
     });
   }
