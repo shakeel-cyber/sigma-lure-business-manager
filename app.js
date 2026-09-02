@@ -1728,6 +1728,75 @@ function setupEventListeners() {
   document.getElementById('comp-month-a')?.addEventListener('change', renderMonthComparison);
   document.getElementById('comp-month-b')?.addEventListener('change', renderMonthComparison);
 
+  setupTouchSwipeNavigation();
+}
+
+function setupTouchSwipeNavigation() {
+  const mainContent = document.querySelector('.main-content');
+  if (!mainContent) return;
+
+  const viewsSequence = [
+    'dashboard-view',
+    'shops-view',
+    'customers-view',
+    'sales-view',
+    'pending-view',
+    'purchases-view',
+    'planned-purchases-view',
+    'invoices-view',
+    'reports-view',
+    'backup-view',
+    'new-orders-view'
+  ];
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchEndX = 0;
+  let touchEndY = 0;
+
+  mainContent.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  mainContent.addEventListener('touchend', (e) => {
+    if (e.changedTouches && e.changedTouches.length === 1) {
+      touchEndX = e.changedTouches[0].clientX;
+      touchEndY = e.changedTouches[0].clientY;
+      handleSwipeGesture();
+    }
+  }, { passive: true });
+
+  function handleSwipeGesture() {
+    const diffX = touchEndX - touchStartX;
+    const diffY = touchEndY - touchStartY;
+
+    if (Math.abs(diffX) > 50 && Math.abs(diffY) < 40) {
+      const activeSec = document.querySelector('.view-section.active');
+      if (!activeSec) return;
+      const currentViewId = activeSec.id;
+      const currentIndex = viewsSequence.indexOf(currentViewId);
+
+      if (currentIndex !== -1) {
+        if (diffX < 0) {
+          const nextIndex = (currentIndex + 1) % viewsSequence.length;
+          switchView(viewsSequence[nextIndex]);
+        } else {
+          const prevIndex = (currentIndex - 1 + viewsSequence.length) % viewsSequence.length;
+          switchView(viewsSequence[prevIndex]);
+        }
+      }
+    }
+  }
+
+  const brandHomeBtn = document.getElementById('brand-home-btn');
+  if (brandHomeBtn) {
+    brandHomeBtn.addEventListener('click', () => switchView('dashboard-view'));
+  }
+}
+
   // Invoice Image Handlers
   document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
   document.getElementById('download-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('download'));
@@ -1985,9 +2054,13 @@ window.filterProfitType = (type) => {
   renderProfitPerLure(currentProfitFilter);
 };
 
-function renderProfitPerLure(filterType = currentProfitFilter) {
+function renderProfitPerLure(filterType = currentProfitFilter, targetMonthStr = null) {
   const tbody = document.getElementById('profit-per-lure-tbody');
   if (!tbody) return;
+
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const activeMonthStr = targetMonthStr || currentMonthStr;
 
   const modelStats = {};
   LURE_PROFIT_CONFIG.forEach(cfg => {
@@ -2007,7 +2080,9 @@ function renderProfitPerLure(filterType = currentProfitFilter) {
     });
   });
 
-  state.sales.forEach(sale => {
+  const targetSales = state.sales.filter(s => s.date && s.date.startsWith(activeMonthStr));
+
+  targetSales.forEach(sale => {
     if (!sale.items || !Array.isArray(sale.items)) return;
     const saleType = (sale.customerType || 'wholesale').toLowerCase();
 
@@ -2600,6 +2675,17 @@ window.handleSaveSale = async function handleSaveSale() {
   }
 };
 
+window.toggleSaleAccordion = (e, saleId) => {
+  if (e && e.target && (e.target.closest('button') || e.target.closest('a') || e.target.closest('input'))) return;
+  const drawer = document.getElementById(`sale-drawer-${saleId}`);
+  const icon = document.getElementById(`sale-arrow-${saleId}`);
+  if (drawer) {
+    const isHidden = drawer.style.display === 'none';
+    drawer.style.display = isHidden ? 'block' : 'none';
+    if (icon) icon.textContent = isHidden ? '▲' : '▼';
+  }
+};
+
 function renderSalesList() {
   const container = document.getElementById('sales-list-container');
   if (!container) return;
@@ -2614,25 +2700,62 @@ function renderSalesList() {
     const statusBadge = getStatusBadgeHTML(s.status);
     const itemsSummary = s.items.map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ');
 
+    const itemsTableRows = s.items.map(i => `
+      <tr>
+        <td><strong>${escapeHTML(i.product)}</strong></td>
+        <td>${escapeHTML(i.weight)}</td>
+        <td style="text-align: right;">${i.qty}</td>
+        <td style="text-align: right;">₹${Math.round(i.sellingPrice || 0).toLocaleString('en-IN')}</td>
+        <td style="text-align: right; font-weight: 700; color: var(--accent);">₹${Math.round(i.amount || 0).toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+
     html += `
-      <div class="list-item">
+      <div class="list-item" onclick="window.toggleSaleAccordion(event, '${s.id}')" style="cursor: pointer;">
         <div class="list-item-header">
-          <span class="list-item-title">${escapeHTML(s.buyerName)} (${s.buyerType})</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="sale-arrow-${s.id}" style="color: var(--accent); font-size: 0.8rem;">▼</span>
+            <span class="list-item-title">${escapeHTML(s.buyerName)} (${s.buyerType})</span>
+          </div>
           ${statusBadge}
         </div>
         <div class="list-item-sub">
-          Inv #: <strong>${s.invoiceNo}</strong> • Date: ${s.date} • Type: ${s.customerType.toUpperCase()}<br>
+          Inv #: <strong>${s.invoiceNo}</strong> • Date: ${s.date} • Type: <strong style="color: var(--accent);">${(s.customerType || 'wholesale').toUpperCase()}</strong><br>
           Items: ${itemsSummary} ${s.freeQty > 0 ? ` (+${s.freeQty} free jigs)` : ''}
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
           <div>
-            <span style="font-weight: 800; font-size: 1rem; color: var(--accent);">₹${s.total.toLocaleString('en-IN')}</span>
-            <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 6px;">(Paid: ₹${s.paid.toLocaleString('en-IN')} | Pending: ₹${s.pending.toLocaleString('en-IN')})</span>
+            <span style="font-weight: 800; font-size: 1rem; color: var(--accent);">₹${Math.round(s.total).toLocaleString('en-IN')}</span>
+            <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 6px;">(Paid: ₹${Math.round(s.paid).toLocaleString('en-IN')} | Pending: ₹${Math.round(s.pending).toLocaleString('en-IN')})</span>
           </div>
           <div style="display: flex; gap: 6px;">
             <button class="btn btn-secondary btn-sm" onclick="window.openUpdatePaymentModal('${s.id}')">Update Pay</button>
             <button class="btn btn-primary btn-sm" onclick="window.openInvoiceModal('${s.id}')">Invoice</button>
             <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteSale('${s.id}')">✕</button>
+          </div>
+        </div>
+        <!-- EXPANDABLE ACCORDION DRAWER -->
+        <div id="sale-drawer-${s.id}" style="display: none; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+          <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">LINE ITEMS BREAKDOWN:</div>
+          <div class="table-responsive">
+            <table class="data-table" style="font-size: 0.8rem;">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Weight</th>
+                  <th style="text-align: right;">Qty</th>
+                  <th style="text-align: right;">Price</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsTableRows}
+              </tbody>
+            </table>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">
+            <span>Subtotal: ₹${Math.round(s.subtotal)} | Shipping: ₹${Math.round(s.shipping)} | Discount: ₹${Math.round(s.discount)}</span>
+            <span>Free Jigs: <strong>${s.freeQty || 0}</strong></span>
           </div>
         </div>
       </div>`;
@@ -2868,8 +2991,10 @@ function renderMonthlyReport() {
   const container = document.getElementById('report-metrics-container');
   if (!monthInput || !container) return;
 
-  const monthStr = monthInput.value;
-  if (!monthStr) return;
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const monthStr = monthInput.value || currentMonthStr;
+  monthInput.value = monthStr;
 
   const monthSales = state.sales.filter(s => s.date && s.date.startsWith(monthStr));
   const monthPurchases = state.purchases.filter(p => p.date && p.date.startsWith(monthStr));
@@ -2882,38 +3007,97 @@ function renderMonthlyReport() {
   const totalShipping = monthSales.reduce((acc, s) => acc + (s.shipping || 0), 0);
   const totalFreeJigs = monthSales.reduce((acc, s) => acc + (s.freeQty || 0), 0);
 
-  const prodSummary = {};
-  monthSales.forEach(s => {
-    s.items.forEach(i => {
-      const key = `${i.product} ${i.weight}`;
-      prodSummary[key] = (prodSummary[key] || 0) + i.qty;
+  let monthProfit = 0;
+  const modelStats = {};
+  LURE_PROFIT_CONFIG.forEach(cfg => {
+    ['wholesale', 'retail'].forEach(type => {
+      const key = `${cfg.model}_${cfg.weight}_${type}`.toLowerCase();
+      const sellingPrice = type === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice;
+      modelStats[key] = {
+        model: cfg.model,
+        weight: cfg.weight,
+        type: type,
+        sellingPrice: sellingPrice,
+        productionCost: cfg.productionCost,
+        profitPerLure: sellingPrice - cfg.productionCost,
+        totalSold: 0,
+        totalProfit: 0
+      };
     });
   });
 
-  const prodListHtml = Object.keys(prodSummary).length === 0
-    ? '<span style="color:var(--text-muted);">None</span>'
-    : Object.entries(prodSummary).map(([k, v]) => `<li>${k}: <strong>${v} pcs</strong></li>`).join('');
+  monthSales.forEach(sale => {
+    if (!sale.items || !Array.isArray(sale.items)) return;
+    const saleType = (sale.customerType || 'wholesale').toLowerCase();
+
+    sale.items.forEach(item => {
+      const prodName = (item.product || '').trim();
+      const weight = (item.weight || '').trim();
+      const key = `${prodName}_${weight}_${saleType}`.toLowerCase();
+      const qty = parseInt(item.qty || item.quantity || 0) || 0;
+
+      if (modelStats[key]) {
+        const itemSellingPrice = (item.sellingPrice !== undefined && item.sellingPrice !== null)
+          ? item.sellingPrice
+          : modelStats[key].sellingPrice;
+        const profitPerLure = itemSellingPrice - modelStats[key].productionCost;
+
+        modelStats[key].totalSold += qty;
+        modelStats[key].totalProfit += qty * profitPerLure;
+        monthProfit += qty * profitPerLure;
+      }
+    });
+  });
+
+  const keysToRender = [];
+  LURE_PROFIT_CONFIG.forEach(cfg => {
+    keysToRender.push(`${cfg.model}_${cfg.weight}_wholesale`.toLowerCase());
+    keysToRender.push(`${cfg.model}_${cfg.weight}_retail`.toLowerCase());
+  });
+
+  const lureRowsHtml = keysToRender.map(key => {
+    const stat = modelStats[key];
+    const typeBadge = stat.type === 'wholesale'
+      ? `<span class="badge badge-info" style="font-size:0.68rem; padding: 2px 6px;">WHOLESALE</span>`
+      : `<span class="badge badge-warning" style="font-size:0.68rem; padding: 2px 6px;">RETAIL</span>`;
+
+    return `
+      <tr>
+        <td><strong>${escapeHTML(stat.model)} ${escapeHTML(stat.weight)}</strong></td>
+        <td>${typeBadge}</td>
+        <td style="text-align: right; color: var(--text-muted);">₹${Math.round(stat.sellingPrice)}</td>
+        <td style="text-align: right; color: var(--text-muted);">₹${Math.round(stat.productionCost)}</td>
+        <td style="text-align: right; color: var(--success); font-weight: bold;">₹${Math.round(stat.profitPerLure)}</td>
+        <td style="text-align: right; font-weight: bold; color: var(--accent);">${stat.totalSold} pcs</td>
+        <td style="text-align: right; font-weight: 900; color: #ffffff;">₹${Math.round(stat.totalProfit).toLocaleString('en-IN')}</td>
+      </tr>
+    `;
+  }).join('');
 
   container.innerHTML = `
-    <div class="grid-2" style="margin-bottom: 12px;">
+    <div class="grid-3" style="margin-bottom: 12px;">
       <div class="stat-card">
         <span class="stat-label">Total Sales</span>
-        <span class="stat-value accent">₹${totalSales.toLocaleString('en-IN')}</span>
+        <span class="stat-value accent">₹${Math.round(totalSales).toLocaleString('en-IN')}</span>
       </div>
       <div class="stat-card">
         <span class="stat-label">Total Purchases</span>
-        <span class="stat-value warning">₹${totalPurchases.toLocaleString('en-IN')}</span>
+        <span class="stat-value warning">₹${Math.round(totalPurchases).toLocaleString('en-IN')}</span>
+      </div>
+      <div class="stat-card" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3);">
+        <span class="stat-label" style="color: var(--success); font-weight: 700;">Actual Profit</span>
+        <span class="stat-value success">₹${Math.round(monthProfit).toLocaleString('en-IN')}</span>
       </div>
     </div>
 
     <div class="grid-3" style="margin-bottom: 12px;">
       <div class="stat-card">
         <span class="stat-label">Received</span>
-        <span class="stat-value success">₹${totalReceived.toLocaleString('en-IN')}</span>
+        <span class="stat-value success">₹${Math.round(totalReceived).toLocaleString('en-IN')}</span>
       </div>
       <div class="stat-card">
         <span class="stat-label">Pending</span>
-        <span class="stat-value danger">₹${totalPending.toLocaleString('en-IN')}</span>
+        <span class="stat-value danger">₹${Math.round(totalPending).toLocaleString('en-IN')}</span>
       </div>
       <div class="stat-card">
         <span class="stat-label">Orders</span>
@@ -2924,11 +3108,11 @@ function renderMonthlyReport() {
     <div class="grid-3" style="margin-bottom: 14px;">
       <div class="stat-card">
         <span class="stat-label">Discounts</span>
-        <span class="stat-value">₹${totalDiscounts.toLocaleString('en-IN')}</span>
+        <span class="stat-value">₹${Math.round(totalDiscounts).toLocaleString('en-IN')}</span>
       </div>
       <div class="stat-card">
         <span class="stat-label">Shipping</span>
-        <span class="stat-value">₹${totalShipping.toLocaleString('en-IN')}</span>
+        <span class="stat-value">₹${Math.round(totalShipping).toLocaleString('en-IN')}</span>
       </div>
       <div class="stat-card">
         <span class="stat-label">Free Jigs</span>
@@ -2936,14 +3120,231 @@ function renderMonthlyReport() {
       </div>
     </div>
 
-    <div class="card" style="background: var(--bg-input);">
-      <div class="card-title" style="font-size:0.85rem; color:var(--text-muted);">Products Sold Breakdown</div>
-      <ul style="padding-left: 20px; font-size:0.85rem;">
-        ${prodListHtml}
-      </ul>
+    <div class="card" style="background: var(--bg-input); margin-top: 14px;">
+      <div class="card-title" style="font-size:0.88rem; color:var(--accent);">🎯 Lure Model Sales & Profit Breakdown (${monthStr})</div>
+      <div class="table-responsive">
+        <table class="data-table" style="font-size: 0.82rem;">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Type</th>
+              <th style="text-align: right;">Selling</th>
+              <th style="text-align: right;">Cost</th>
+              <th style="text-align: right;">Profit/Unit</th>
+              <th style="text-align: right;">Sold</th>
+              <th style="text-align: right;">Total Profit</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lureRowsHtml}
+          </tbody>
+        </table>
+      </div>
     </div>
   `;
 }
+
+window.downloadMonthlyReportPDF = (targetMonthStr) => {
+  const monthInput = document.getElementById('report-month-select');
+  const monthStr = targetMonthStr || monthInput?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  
+  const monthSales = state.sales.filter(s => s.date && s.date.startsWith(monthStr));
+  const monthPurchases = state.purchases.filter(p => p.date && p.date.startsWith(monthStr));
+
+  const totalSales = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
+  const totalPurchases = monthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
+  const totalReceived = monthSales.reduce((acc, s) => acc + (s.paid || 0), 0);
+  const totalPending = monthSales.reduce((acc, s) => acc + (s.pending || 0), 0);
+  const totalDiscounts = monthSales.reduce((acc, s) => acc + (s.discount || 0), 0);
+  const totalFreeJigs = monthSales.reduce((acc, s) => acc + (s.freeQty || 0), 0);
+
+  let monthProfit = 0;
+  const modelStats = {};
+  LURE_PROFIT_CONFIG.forEach(cfg => {
+    ['wholesale', 'retail'].forEach(type => {
+      const key = `${cfg.model}_${cfg.weight}_${type}`.toLowerCase();
+      const sellingPrice = type === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice;
+      modelStats[key] = {
+        model: cfg.model,
+        weight: cfg.weight,
+        type: type,
+        sellingPrice,
+        productionCost: cfg.productionCost,
+        profitPerLure: sellingPrice - cfg.productionCost,
+        totalSold: 0,
+        totalProfit: 0
+      };
+    });
+  });
+
+  monthSales.forEach(sale => {
+    if (!sale.items || !Array.isArray(sale.items)) return;
+    const saleType = (sale.customerType || 'wholesale').toLowerCase();
+    sale.items.forEach(item => {
+      const prodName = (item.product || '').trim();
+      const weight = (item.weight || '').trim();
+      const key = `${prodName}_${weight}_${saleType}`.toLowerCase();
+      const qty = parseInt(item.qty || item.quantity || 0) || 0;
+      if (modelStats[key]) {
+        const itemSellingPrice = (item.sellingPrice !== undefined && item.sellingPrice !== null) ? item.sellingPrice : modelStats[key].sellingPrice;
+        const profitPerLure = itemSellingPrice - modelStats[key].productionCost;
+        modelStats[key].totalSold += qty;
+        modelStats[key].totalProfit += qty * profitPerLure;
+        monthProfit += qty * profitPerLure;
+      }
+    });
+  });
+
+  const salesRows = monthSales.length === 0
+    ? `<tr><td colspan="7" style="text-align:center;">No sales logged for this month</td></tr>`
+    : monthSales.map(s => {
+        const itemsText = s.items.map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ');
+        return `
+          <tr>
+            <td>${s.date}</td>
+            <td><strong>${s.invoiceNo}</strong></td>
+            <td>${escapeHTML(s.buyerName)} (${s.buyerType})</td>
+            <td>${(s.customerType || 'wholesale').toUpperCase()}</td>
+            <td>${itemsText}</td>
+            <td style="text-align:right;">₹${Math.round(s.total).toLocaleString('en-IN')}</td>
+            <td style="text-align:right;">₹${Math.round(s.paid).toLocaleString('en-IN')}</td>
+          </tr>
+        `;
+      }).join('');
+
+  const purchRows = monthPurchases.length === 0
+    ? `<tr><td colspan="6" style="text-align:center;">No purchases logged for this month</td></tr>`
+    : monthPurchases.map(p => `
+        <tr>
+          <td>${p.date}</td>
+          <td><strong>${escapeHTML(p.product)}</strong></td>
+          <td>${p.supplier ? escapeHTML(p.supplier) : 'N/A'}</td>
+          <td style="text-align:right;">${p.quantity || 1}</td>
+          <td style="text-align:right;">₹${Math.round(p.price || 0)}</td>
+          <td style="text-align:right;">₹${Math.round(p.total || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+
+  const keysToRender = [];
+  LURE_PROFIT_CONFIG.forEach(cfg => {
+    keysToRender.push(`${cfg.model}_${cfg.weight}_wholesale`.toLowerCase());
+    keysToRender.push(`${cfg.model}_${cfg.weight}_retail`.toLowerCase());
+  });
+
+  const lureRows = keysToRender.map(key => {
+    const stat = modelStats[key];
+    return `
+      <tr>
+        <td><strong>${escapeHTML(stat.model)} ${escapeHTML(stat.weight)}</strong></td>
+        <td>${stat.type.toUpperCase()}</td>
+        <td style="text-align:right;">₹${Math.round(stat.sellingPrice)}</td>
+        <td style="text-align:right;">₹${Math.round(stat.productionCost)}</td>
+        <td style="text-align:right;">₹${Math.round(stat.profitPerLure)}</td>
+        <td style="text-align:right; font-weight:bold;">${stat.totalSold} pcs</td>
+        <td style="text-align:right; font-weight:bold;">₹${Math.round(stat.totalProfit).toLocaleString('en-IN')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const printArea = document.getElementById('report-print-area');
+  if (!printArea) return;
+
+  printArea.innerHTML = `
+    <div style="margin-bottom: 20px; border-bottom: 2px solid #ff6b00; padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <h1 style="font-size: 1.6rem; margin: 0; color: #111;">SIGMA LURES</h1>
+        <div style="font-size: 0.9rem; color: #555; text-transform: uppercase; letter-spacing: 1px;">Monthly Business & Financial Report — ${monthStr}</div>
+      </div>
+      <div style="font-size: 0.8rem; color: #666; text-align: right;">
+        Report Date: ${new Date().toISOString().split('T')[0]}<br>
+        App Version: 2.0
+      </div>
+    </div>
+
+    <h2 style="font-size: 1.1rem; margin-top: 14px; margin-bottom: 8px;">1. Monthly Financial Overview Summary</h2>
+    <table class="print-table">
+      <tr>
+        <th>Total Sales</th>
+        <td>₹${Math.round(totalSales).toLocaleString('en-IN')}</td>
+        <th>Total Purchases</th>
+        <td>₹${Math.round(totalPurchases).toLocaleString('en-IN')}</td>
+      </tr>
+      <tr>
+        <th>Actual Profit</th>
+        <td style="font-weight:bold; color: #059669;">₹${Math.round(monthProfit).toLocaleString('en-IN')}</td>
+        <th>Amount Received</th>
+        <td>₹${Math.round(totalReceived).toLocaleString('en-IN')}</td>
+      </tr>
+      <tr>
+        <th>Orders Count</th>
+        <td>${monthSales.length} orders</td>
+        <th>Month Pending Dues</th>
+        <td>₹${Math.round(totalPending).toLocaleString('en-IN')}</td>
+      </tr>
+      <tr>
+        <th>Discounts</th>
+        <td>₹${Math.round(totalDiscounts).toLocaleString('en-IN')}</td>
+        <th>Free Jigs Given</th>
+        <td>${totalFreeJigs} pcs</td>
+      </tr>
+    </table>
+
+    <h2 style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;">2. Delivered Sales & Shop Deliveries Log</h2>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Invoice #</th>
+          <th>Buyer Name</th>
+          <th>Mode</th>
+          <th>Products & Quantities Delivered</th>
+          <th style="text-align:right;">Total</th>
+          <th style="text-align:right;">Paid</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${salesRows}
+      </tbody>
+    </table>
+
+    <h2 style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;">3. Material Purchases Log</h2>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Product / Item</th>
+          <th>Supplier</th>
+          <th style="text-align:right;">Qty</th>
+          <th style="text-align:right;">Unit Price</th>
+          <th style="text-align:right;">Total Cost</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${purchRows}
+      </tbody>
+    </table>
+
+    <h2 style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;">4. Lure Model Sales & Profit Matrix</h2>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Type</th>
+          <th style="text-align:right;">Selling Price</th>
+          <th style="text-align:right;">Prod. Cost</th>
+          <th style="text-align:right;">Unit Profit</th>
+          <th style="text-align:right;">Quantity Sold</th>
+          <th style="text-align:right;">Total Profit</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lureRows}
+      </tbody>
+    </table>
+  `;
+
+  window.print();
+};
 
 function renderMonthComparison() {
   const monthA = document.getElementById('comp-month-a')?.value;

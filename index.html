@@ -68,9 +68,12 @@
     <section id="dashboard-view" class="view-section active">
       <!-- Monthly Quick Stats Card -->
       <div class="card">
-        <div class="card-title">
-          <span>This Month Overview</span>
-          <span id="dash-month-label" style="font-size: 0.75rem; color: var(--accent);"></span>
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>This Month Overview</span>
+            <span id="dash-month-label" style="font-size: 0.75rem; color: var(--accent);"></span>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="window.switchView('reports-view')" style="font-size:0.75rem; padding: 4px 10px;">📊 Compare / Past Months</button>
         </div>
         <div class="grid-3" style="margin-bottom: 10px;">
           <div class="stat-card">
@@ -537,14 +540,15 @@
     <!-- REPORTS VIEW -->
     <section id="reports-view" class="view-section">
       <div class="card">
-        <div class="card-title">
-          <span>📊 Monthly Financial Report</span>
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <span>📊 Monthly Financial & Profit Report</span>
+          <button class="btn btn-primary btn-sm" id="download-report-pdf-btn" onclick="window.downloadMonthlyReportPDF()">📄 Download PDF Report</button>
         </div>
         <div class="form-group">
           <label class="form-label">Select Month</label>
           <input type="month" id="report-month-select" class="form-input">
         </div>
-        <div id="report-summary-container"></div>
+        <div id="report-metrics-container"></div>
       </div>
 
       <div class="card">
@@ -634,13 +638,13 @@
       <span class="icon">🏪</span>
       <span>Shops</span>
     </button>
-    <button class="nav-item" data-target="customers-view" onclick="window.switchView('customers-view')">
-      <span class="icon">👤</span>
-      <span>Customers</span>
-    </button>
     <button class="nav-item" data-target="sales-view" onclick="window.switchView('sales-view')">
       <span class="icon">💰</span>
       <span>Sales</span>
+    </button>
+    <button class="nav-item" data-target="reports-view" onclick="window.switchView('reports-view')">
+      <span class="icon">📊</span>
+      <span>Reports</span>
     </button>
     <button class="nav-item" data-target="pending-view" onclick="window.switchView('pending-view')">
       <span class="icon">💳</span>
@@ -1086,6 +1090,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Printable Container for PDF Export -->
+  <div id="report-print-area"></div>
 
   <script src="app.js?v=18"></script>
 </body>
