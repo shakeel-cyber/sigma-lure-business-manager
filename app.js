@@ -1859,48 +1859,41 @@ function setupEventListeners() {
 }
 
 function setupTouchSwipeNavigation() {
-  const mainContent = document.querySelector('.main-content');
-  if (!mainContent) return;
-
   const viewsSequence = [
     'dashboard-view',
+    'new-orders-view',
     'shops-view',
     'customers-view',
     'sales-view',
-    'pending-view',
-    'purchases-view',
-    'planned-purchases-view',
-    'invoices-view',
-    'reports-view',
-    'backup-view',
-    'new-orders-view'
+    'pending-view'
   ];
 
   let touchStartX = 0;
   let touchStartY = 0;
-  let touchTime = 0;
+  let touchStartTime = 0;
 
-  mainContent.addEventListener('touchstart', (e) => {
+  document.addEventListener('touchstart', (e) => {
     if (e.touches && e.touches.length === 1) {
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
-      touchTime = Date.now();
+      touchStartTime = Date.now();
     }
   }, { passive: true });
 
-  mainContent.addEventListener('touchend', (e) => {
-    if (e.target && (e.target.closest('button, input, select, textarea, a, .btn, .nav-item, .list-item, .card, .stat-card, .data-table, tr, td, th'))) {
+  document.addEventListener('touchend', (e) => {
+    if (state.activeModal) return;
+    if (e.target && e.target.closest('button, input, select, textarea, a, .btn, .nav-item, .modal-overlay')) {
       return;
     }
 
-    const duration = Date.now() - touchTime;
-    if (duration < 150 || duration > 600) return;
+    const duration = Date.now() - touchStartTime;
+    if (duration > 800) return;
 
     if (e.changedTouches && e.changedTouches.length === 1) {
       const diffX = e.changedTouches[0].clientX - touchStartX;
       const diffY = e.changedTouches[0].clientY - touchStartY;
 
-      if (Math.abs(diffX) > 100 && Math.abs(diffY) < 30) {
+      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.2) {
         const activeSec = document.querySelector('.view-section.active');
         if (!activeSec) return;
         const currentViewId = activeSec.id;
@@ -1908,9 +1901,11 @@ function setupTouchSwipeNavigation() {
 
         if (currentIndex !== -1) {
           if (diffX < 0) {
+            // Swipe Left -> Next section
             const nextIndex = (currentIndex + 1) % viewsSequence.length;
             switchView(viewsSequence[nextIndex]);
           } else {
+            // Swipe Right -> Previous section
             const prevIndex = (currentIndex - 1 + viewsSequence.length) % viewsSequence.length;
             switchView(viewsSequence[prevIndex]);
           }
@@ -3166,6 +3161,39 @@ function renderMonthlyReport() {
     `;
   }).join('');
 
+  const salesRowsHtml = monthSales.length === 0
+    ? `<tr><td colspan="7" style="text-align:center; color: var(--text-muted); padding: 12px;">No sales logged for ${monthStr}</td></tr>`
+    : monthSales.map(s => {
+        const itemsText = s.items.map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ');
+        const typeBadge = (s.customerType || 'wholesale').toLowerCase() === 'wholesale'
+          ? `<span class="badge badge-info" style="font-size:0.68rem; padding: 2px 6px;">WHOLESALE</span>`
+          : `<span class="badge badge-warning" style="font-size:0.68rem; padding: 2px 6px;">RETAIL</span>`;
+        return `
+          <tr>
+            <td><strong style="color:#ffffff;">${s.date}</strong></td>
+            <td><span style="color: var(--accent); font-weight: 700;">${s.invoiceNo}</span></td>
+            <td><strong>${escapeHTML(s.buyerName)}</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(${s.buyerType})</span></td>
+            <td>${typeBadge}</td>
+            <td style="font-size: 0.8rem; color: var(--text-muted);">${itemsText}</td>
+            <td style="text-align:right; font-weight:800; color: var(--accent);">₹${Math.round(s.total).toLocaleString('en-IN')}</td>
+            <td style="text-align:right; color: var(--success); font-weight:700;">₹${Math.round(s.paid).toLocaleString('en-IN')}</td>
+          </tr>
+        `;
+      }).join('');
+
+  const purchRowsHtml = monthPurchases.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 12px;">No purchases logged for ${monthStr}</td></tr>`
+    : monthPurchases.map(p => `
+        <tr>
+          <td><strong style="color:#ffffff;">${p.date}</strong></td>
+          <td><strong>${escapeHTML(p.product)}</strong></td>
+          <td style="color: var(--text-muted);">${p.supplier ? escapeHTML(p.supplier) : 'N/A'}</td>
+          <td style="text-align:right; font-weight:700;">${p.quantity || 1}</td>
+          <td style="text-align:right; color: var(--text-muted);">₹${Math.round(p.price || 0)}</td>
+          <td style="text-align:right; font-weight:800; color: var(--warning);">₹${Math.round(p.total || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+
   container.innerHTML = `
     <div class="grid-3" style="margin-bottom: 12px;">
       <div class="stat-card">
@@ -3229,6 +3257,49 @@ function renderMonthlyReport() {
           </thead>
           <tbody>
             ${lureRowsHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="background: var(--bg-input); margin-top: 14px;">
+      <div class="card-title" style="font-size:0.88rem; color:var(--accent);">🏪 Delivered Sales & Shop Deliveries Log (${monthStr})</div>
+      <div class="table-responsive">
+        <table class="data-table" style="font-size: 0.82rem;">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Invoice #</th>
+              <th>Buyer</th>
+              <th>Type</th>
+              <th>Products & Qty</th>
+              <th style="text-align: right;">Total</th>
+              <th style="text-align: right;">Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${salesRowsHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="background: var(--bg-input); margin-top: 14px;">
+      <div class="card-title" style="font-size:0.88rem; color:var(--accent);">🧾 Material Purchases Log (${monthStr})</div>
+      <div class="table-responsive">
+        <table class="data-table" style="font-size: 0.82rem;">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Product / Material</th>
+              <th>Supplier</th>
+              <th style="text-align: right;">Qty</th>
+              <th style="text-align: right;">Unit Price</th>
+              <th style="text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${purchRowsHtml}
           </tbody>
         </table>
       </div>

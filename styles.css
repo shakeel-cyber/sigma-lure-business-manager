@@ -639,6 +639,10 @@ body {
   color: var(--accent);
 }
 
+#report-print-area {
+  display: none !important;
+}
+
 /* Invoice & Monthly Report Print Styles */
 @media print {
   body * { visibility: hidden !important; }
