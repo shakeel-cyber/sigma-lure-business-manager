@@ -1814,9 +1814,46 @@ function setupEventListeners() {
 
   document.getElementById('invoice-search-input')?.addEventListener('input', renderInvoicesList);
 
+  document.getElementById('invoice-search-input')?.addEventListener('input', renderInvoicesList);
+
   document.getElementById('report-month-select')?.addEventListener('change', renderMonthlyReport);
   document.getElementById('comp-month-a')?.addEventListener('change', renderMonthComparison);
   document.getElementById('comp-month-b')?.addEventListener('change', renderMonthComparison);
+
+  // Invoice Image Handlers
+  document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
+  document.getElementById('download-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('download'));
+
+  document.getElementById('execute-native-share-btn')?.addEventListener('click', async () => {
+    const file = state.currentInvoiceFile;
+    const blob = state.currentInvoiceBlob;
+    const fileName = state.currentInvoiceFileName || 'Invoice.png';
+
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `Invoice - Sigma Lures`,
+          text: `Invoice details`
+        });
+        showToast('Invoice image shared!');
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.warn('Native share error:', err);
+      }
+    }
+
+    if (blob) {
+      downloadBlob(blob, fileName);
+    }
+  });
+
+  document.getElementById('execute-image-download-btn')?.addEventListener('click', () => {
+    if (state.currentInvoiceBlob) {
+      downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
+    }
+  });
 
   setupTouchSwipeNavigation();
 }
@@ -1886,42 +1923,6 @@ function setupTouchSwipeNavigation() {
   if (brandHomeBtn) {
     brandHomeBtn.addEventListener('click', () => switchView('dashboard-view'));
   }
-}
-
-  // Invoice Image Handlers
-  document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
-  document.getElementById('download-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('download'));
-
-  document.getElementById('execute-native-share-btn')?.addEventListener('click', async () => {
-    const file = state.currentInvoiceFile;
-    const blob = state.currentInvoiceBlob;
-    const fileName = state.currentInvoiceFileName || 'Invoice.png';
-
-    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: `Invoice - Sigma Lures`,
-          text: `Invoice details`
-        });
-        showToast('Invoice image shared!');
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-        console.warn('Native share error:', err);
-      }
-    }
-
-    if (blob) {
-      downloadBlob(blob, fileName);
-    }
-  });
-
-  document.getElementById('execute-image-download-btn')?.addEventListener('click', () => {
-    if (state.currentInvoiceBlob) {
-      downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
-    }
-  });
 }
 
 function setupDefaultDates() {
