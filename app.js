@@ -2083,6 +2083,7 @@ function renderDashboardStats() {
   const totalPurchasesVal = thisMonthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
 
   let thisMonthProfit = 0;
+  let totalLuresSold = 0;
   thisMonthSales.forEach(s => {
     if (s.items && Array.isArray(s.items)) {
       const saleType = (s.customerType || 'wholesale').toLowerCase();
@@ -2090,10 +2091,11 @@ function renderDashboardStats() {
         const prodName = (item.product || '').trim();
         const weight = (item.weight || '').trim();
         const cfg = LURE_PROFIT_CONFIG.find(c => c.model.toLowerCase() === prodName.toLowerCase() && c.weight.toLowerCase() === weight.toLowerCase());
+        const q = parseInt(item.qty || item.quantity || 0) || 0;
+        totalLuresSold += q;
         if (cfg) {
           const sellPrice = (item.sellingPrice !== undefined && item.sellingPrice !== null) ? item.sellingPrice : (saleType === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice);
           const pUnit = sellPrice - cfg.productionCost;
-          const q = parseInt(item.qty || item.quantity || 0) || 0;
           thisMonthProfit += q * pUnit;
         }
       });
@@ -2105,7 +2107,7 @@ function renderDashboardStats() {
   setText('dash-month-received', `₹${Math.round(totalReceivedVal).toLocaleString('en-IN')}`);
   setText('dash-month-pending', `₹${Math.round(totalPendingVal).toLocaleString('en-IN')}`);
   setText('dash-month-profit', `₹${Math.round(thisMonthProfit).toLocaleString('en-IN')}`);
-  setText('dash-month-orders', thisMonthSales.length);
+  setText('dash-month-lures-sold', `${totalLuresSold} pcs`);
 
   renderProfitPerLure();
 }
@@ -3194,6 +3196,15 @@ function renderMonthlyReport() {
         </tr>
       `).join('');
 
+  let totalReportLuresSold = 0;
+  monthSales.forEach(s => {
+    if (s.items && Array.isArray(s.items)) {
+      s.items.forEach(i => {
+        totalReportLuresSold += (parseInt(i.qty || i.quantity || 0) || 0);
+      });
+    }
+  });
+
   container.innerHTML = `
     <div class="grid-3" style="margin-bottom: 12px;">
       <div class="stat-card">
@@ -3231,8 +3242,8 @@ function renderMonthlyReport() {
         <span class="stat-value">₹${Math.round(totalDiscounts).toLocaleString('en-IN')}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Shipping</span>
-        <span class="stat-value">₹${Math.round(totalShipping).toLocaleString('en-IN')}</span>
+        <span class="stat-label">Lures Sold</span>
+        <span class="stat-value" style="color:var(--accent);">${totalReportLuresSold} pcs</span>
       </div>
       <div class="stat-card">
         <span class="stat-label">Free Jigs</span>
@@ -3520,15 +3531,34 @@ function renderMonthComparison() {
   const purchA = state.purchases.filter(p => p.date && p.date.startsWith(monthA));
   const purchB = state.purchases.filter(p => p.date && p.date.startsWith(monthB));
 
-  const totalSalesA = salesA.reduce((acc, s) => acc + s.total, 0);
-  const totalSalesB = salesB.reduce((acc, s) => acc + s.total, 0);
-  const totalPurchA = purchA.reduce((acc, p) => acc + p.total, 0);
-  const totalPurchB = purchB.reduce((acc, p) => acc + p.total, 0);
-  const totalRecA = salesA.reduce((acc, s) => acc + s.paid, 0);
-  const totalRecB = salesB.reduce((acc, s) => acc + s.paid, 0);
-  const totalPendA = salesA.reduce((acc, s) => acc + s.pending, 0);
-  const totalPendB = salesB.reduce((acc, s) => acc + s.pending, 0);
+  let luresSoldA = 0;
+  salesA.forEach(s => {
+    if (s.items && Array.isArray(s.items)) {
+      s.items.forEach(i => {
+        luresSoldA += (parseInt(i.qty || i.quantity || 0) || 0);
+      });
+    }
+  });
 
+  let luresSoldB = 0;
+  salesB.forEach(s => {
+    if (s.items && Array.isArray(s.items)) {
+      s.items.forEach(i => {
+        luresSoldB += (parseInt(i.qty || i.quantity || 0) || 0);
+      });
+    }
+  });
+
+  const totalSalesA = salesA.reduce((acc, s) => acc + (s.total || 0), 0);
+  const totalSalesB = salesB.reduce((acc, s) => acc + (s.total || 0), 0);
+  const totalPurchA = purchA.reduce((acc, p) => acc + (p.total || 0), 0);
+  const totalPurchB = purchB.reduce((acc, p) => acc + (p.total || 0), 0);
+  const totalRecA = salesA.reduce((acc, s) => acc + (s.paid || 0), 0);
+  const totalRecB = salesB.reduce((acc, s) => acc + (s.paid || 0), 0);
+  const totalPendA = salesA.reduce((acc, s) => acc + (s.pending || 0), 0);
+  const totalPendB = salesB.reduce((acc, s) => acc + (s.pending || 0), 0);
+
+  const diffLures = luresSoldA - luresSoldB;
   const diffSales = totalSalesA - totalSalesB;
   const diffPurch = totalPurchA - totalPurchB;
   const diffRec = totalRecA - totalRecB;
@@ -3538,6 +3568,12 @@ function renderMonthComparison() {
     const prefix = val >= 0 ? '+' : '';
     const color = val >= 0 ? 'var(--success)' : 'var(--danger)';
     return `<span style="color:${color}; font-weight:bold;">${prefix}₹${val.toLocaleString('en-IN')}</span>`;
+  };
+
+  const formatLuresDiff = (val) => {
+    const prefix = val >= 0 ? '+' : '';
+    const color = val >= 0 ? 'var(--success)' : 'var(--danger)';
+    return `<span style="color:${color}; font-weight:bold;">${prefix}${val} pcs</span>`;
   };
 
   container.innerHTML = `
@@ -3553,13 +3589,19 @@ function renderMonthComparison() {
         </thead>
         <tbody>
           <tr>
-            <td>Sales</td>
+            <td><strong>Lures Sold</strong></td>
+            <td><strong style="color:var(--accent);">${luresSoldA} pcs</strong></td>
+            <td><strong style="color:var(--accent);">${luresSoldB} pcs</strong></td>
+            <td>${formatLuresDiff(diffLures)}</td>
+          </tr>
+          <tr>
+            <td>Total Sales Revenue</td>
             <td>₹${totalSalesA.toLocaleString('en-IN')}</td>
             <td>₹${totalSalesB.toLocaleString('en-IN')}</td>
             <td>${formatDiff(diffSales)}</td>
           </tr>
           <tr>
-            <td>Purchases</td>
+            <td>Total Purchases</td>
             <td>₹${totalPurchA.toLocaleString('en-IN')}</td>
             <td>₹${totalPurchB.toLocaleString('en-IN')}</td>
             <td>${formatDiff(diffPurch)}</td>
