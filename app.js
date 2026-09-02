@@ -198,40 +198,65 @@ function getStore(storeName, mode = 'readonly') {
 }
 
 function getAll(storeName) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     initDB().then(() => {
-      if (useFallbackStore) {
+      if (useFallbackStore || !dbInstance) {
         const list = fallbackData[storeName] || [];
         return resolve(JSON.parse(JSON.stringify(list)));
       }
-      const store = getStore(storeName, 'readonly');
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => {
+          const list = fallbackData[storeName] || [];
+          resolve(JSON.parse(JSON.stringify(list)));
+        };
+      } catch (e) {
+        const list = fallbackData[storeName] || [];
+        resolve(JSON.parse(JSON.stringify(list)));
+      }
+    }).catch(() => {
+      const list = fallbackData[storeName] || [];
+      resolve(JSON.parse(JSON.stringify(list)));
+    });
   });
 }
 
 function getItem(storeName, id) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     initDB().then(() => {
-      if (useFallbackStore) {
+      if (useFallbackStore || !dbInstance) {
         const list = fallbackData[storeName] || [];
         const found = list.find(item => item.id === id) || null;
         return resolve(JSON.parse(JSON.stringify(found)));
       }
-      const store = getStore(storeName, 'readonly');
-      const request = store.get(id);
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readonly');
+        const request = store.get(id);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => {
+          const list = fallbackData[storeName] || [];
+          const found = list.find(item => item.id === id) || null;
+          resolve(JSON.parse(JSON.stringify(found)));
+        };
+      } catch (e) {
+        const list = fallbackData[storeName] || [];
+        const found = list.find(item => item.id === id) || null;
+        resolve(JSON.parse(JSON.stringify(found)));
+      }
+    }).catch(() => {
+      const list = fallbackData[storeName] || [];
+      const found = list.find(item => item.id === id) || null;
+      resolve(JSON.parse(JSON.stringify(found)));
+    });
   });
 }
 
 function saveItem(storeName, item) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     initDB().then(() => {
-      if (useFallbackStore) {
+      if (useFallbackStore || !dbInstance) {
         if (!fallbackData[storeName]) fallbackData[storeName] = [];
         const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
         if (idx >= 0) {
@@ -242,29 +267,81 @@ function saveItem(storeName, item) {
         persistFallbackData();
         return resolve(item);
       }
-      const store = getStore(storeName, 'readwrite');
-      const request = store.put(item);
-      request.onsuccess = () => resolve(item);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.put(item);
+        request.onsuccess = () => resolve(item);
+        request.onerror = () => {
+          if (!fallbackData[storeName]) fallbackData[storeName] = [];
+          const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
+          if (idx >= 0) {
+            fallbackData[storeName][idx] = item;
+          } else {
+            fallbackData[storeName].push(item);
+          }
+          persistFallbackData();
+          resolve(item);
+        };
+      } catch (e) {
+        if (!fallbackData[storeName]) fallbackData[storeName] = [];
+        const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
+        if (idx >= 0) {
+          fallbackData[storeName][idx] = item;
+        } else {
+          fallbackData[storeName].push(item);
+        }
+        persistFallbackData();
+        resolve(item);
+      }
+    }).catch(() => {
+      if (!fallbackData[storeName]) fallbackData[storeName] = [];
+      const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
+      if (idx >= 0) {
+        fallbackData[storeName][idx] = item;
+      } else {
+        fallbackData[storeName].push(item);
+      }
+      persistFallbackData();
+      resolve(item);
+    });
   });
 }
 
 function deleteItem(storeName, id) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     initDB().then(() => {
-      if (useFallbackStore) {
+      if (useFallbackStore || !dbInstance) {
         if (fallbackData[storeName]) {
           fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
           persistFallbackData();
         }
         return resolve(true);
       }
-      const store = getStore(storeName, 'readwrite');
-      const request = store.delete(id);
-      request.onsuccess = () => resolve(true);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.delete(id);
+        request.onsuccess = () => resolve(true);
+        request.onerror = () => {
+          if (fallbackData[storeName]) {
+            fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
+            persistFallbackData();
+          }
+          resolve(true);
+        };
+      } catch (e) {
+        if (fallbackData[storeName]) {
+          fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
+          persistFallbackData();
+        }
+        resolve(true);
+      }
+    }).catch(() => {
+      if (fallbackData[storeName]) {
+        fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
+        persistFallbackData();
+      }
+      resolve(true);
+    });
   });
 }
 
