@@ -1751,48 +1751,56 @@ function setupTouchSwipeNavigation() {
 
   let touchStartX = 0;
   let touchStartY = 0;
-  let touchEndX = 0;
-  let touchEndY = 0;
+  let touchTime = 0;
 
   mainContent.addEventListener('touchstart', (e) => {
     if (e.touches && e.touches.length === 1) {
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
+      touchTime = Date.now();
     }
   }, { passive: true });
 
   mainContent.addEventListener('touchend', (e) => {
-    if (e.target && (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('a') || e.target.closest('.btn'))) {
+    if (e.target && (e.target.closest('button, input, select, textarea, a, .btn, .nav-item, .list-item, .card, .stat-card, .data-table, tr, td, th'))) {
       return;
     }
+
+    const duration = Date.now() - touchTime;
+    if (duration < 150 || duration > 600) return;
+
     if (e.changedTouches && e.changedTouches.length === 1) {
-      touchEndX = e.changedTouches[0].clientX;
-      touchEndY = e.changedTouches[0].clientY;
-      handleSwipeGesture();
-    }
-  }, { passive: true });
+      const diffX = e.changedTouches[0].clientX - touchStartX;
+      const diffY = e.changedTouches[0].clientY - touchStartY;
 
-  function handleSwipeGesture() {
-    const diffX = touchEndX - touchStartX;
-    const diffY = touchEndY - touchStartY;
+      if (Math.abs(diffX) > 100 && Math.abs(diffY) < 30) {
+        const activeSec = document.querySelector('.view-section.active');
+        if (!activeSec) return;
+        const currentViewId = activeSec.id;
+        const currentIndex = viewsSequence.indexOf(currentViewId);
 
-    if (Math.abs(diffX) > 50 && Math.abs(diffY) < 40) {
-      const activeSec = document.querySelector('.view-section.active');
-      if (!activeSec) return;
-      const currentViewId = activeSec.id;
-      const currentIndex = viewsSequence.indexOf(currentViewId);
-
-      if (currentIndex !== -1) {
-        if (diffX < 0) {
-          const nextIndex = (currentIndex + 1) % viewsSequence.length;
-          switchView(viewsSequence[nextIndex]);
-        } else {
-          const prevIndex = (currentIndex - 1 + viewsSequence.length) % viewsSequence.length;
-          switchView(viewsSequence[prevIndex]);
+        if (currentIndex !== -1) {
+          if (diffX < 0) {
+            const nextIndex = (currentIndex + 1) % viewsSequence.length;
+            switchView(viewsSequence[nextIndex]);
+          } else {
+            const prevIndex = (currentIndex - 1 + viewsSequence.length) % viewsSequence.length;
+            switchView(viewsSequence[prevIndex]);
+          }
         }
       }
     }
-  }
+  }, { passive: true });
+
+  document.addEventListener('click', (e) => {
+    const navBtn = e.target.closest('[data-target]');
+    if (navBtn) {
+      const targetView = navBtn.getAttribute('data-target');
+      if (targetView && typeof switchView === 'function') {
+        switchView(targetView);
+      }
+    }
+  });
 
   const brandHomeBtn = document.getElementById('brand-home-btn');
   if (brandHomeBtn) {
