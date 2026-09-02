@@ -1882,16 +1882,6 @@ function setupTouchSwipeNavigation() {
     }
   }, { passive: true });
 
-  document.addEventListener('click', (e) => {
-    const navBtn = e.target.closest('[data-target]');
-    if (navBtn) {
-      const targetView = navBtn.getAttribute('data-target');
-      if (targetView && typeof switchView === 'function') {
-        switchView(targetView);
-      }
-    }
-  });
-
   const brandHomeBtn = document.getElementById('brand-home-btn');
   if (brandHomeBtn) {
     brandHomeBtn.addEventListener('click', () => switchView('dashboard-view'));
