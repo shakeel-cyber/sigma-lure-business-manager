@@ -1762,6 +1762,9 @@ function setupTouchSwipeNavigation() {
   }, { passive: true });
 
   mainContent.addEventListener('touchend', (e) => {
+    if (e.target && (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('a') || e.target.closest('.btn'))) {
+      return;
+    }
     if (e.changedTouches && e.changedTouches.length === 1) {
       touchEndX = e.changedTouches[0].clientX;
       touchEndY = e.changedTouches[0].clientY;
@@ -3588,3 +3591,9 @@ async function loadAllData() {
     console.error('Failed loading DB data:', e);
   }
 }
+
+// Global Window Bindings for Inline HTML Callbacks & Navigation
+window.switchView = switchView;
+window.renderAllViews = renderAllViews;
+window.renderMonthlyReport = renderMonthlyReport;
+window.renderMonthComparison = renderMonthComparison;
