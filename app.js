@@ -1814,8 +1814,7 @@ function setupEventListeners() {
 
   document.getElementById('invoice-search-input')?.addEventListener('input', renderInvoicesList);
 
-  document.getElementById('invoice-search-input')?.addEventListener('input', renderInvoicesList);
-
+  document.getElementById('purchases-month-filter')?.addEventListener('change', renderPurchasesList);
   document.getElementById('report-month-select')?.addEventListener('change', renderMonthlyReport);
   document.getElementById('comp-month-a')?.addEventListener('change', renderMonthComparison);
   document.getElementById('comp-month-b')?.addEventListener('change', renderMonthComparison);
@@ -2981,17 +2980,28 @@ function renderPurchasesList() {
   const container = document.getElementById('purchases-list-container');
   if (!container) return;
 
-  const totalSpent = state.purchases.reduce((acc, p) => acc + p.total, 0);
-  setText('purchase-total-spent', `₹${totalSpent.toLocaleString('en-IN')}`);
-  setText('purchase-total-count', state.purchases.length);
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  if (state.purchases.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No material purchases logged yet.</p>`;
+  const monthInput = document.getElementById('purchases-month-filter');
+  if (monthInput && !monthInput.value) {
+    monthInput.value = currentMonthStr;
+  }
+  const selectedMonth = monthInput?.value || currentMonthStr;
+
+  const monthPurchases = state.purchases.filter(p => p.date && p.date.startsWith(selectedMonth));
+
+  const totalSpent = monthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
+  setText('purchase-total-spent', `₹${Math.round(totalSpent).toLocaleString('en-IN')}`);
+  setText('purchase-total-count', monthPurchases.length);
+
+  if (monthPurchases.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 14px;">No material purchases logged for ${selectedMonth}.</p>`;
     return;
   }
 
   let html = '';
-  state.purchases.forEach(p => {
+  monthPurchases.forEach(p => {
     html += `
       <div class="list-item">
         <div class="list-item-header">

@@ -495,17 +495,21 @@
     <!-- PURCHASES VIEW -->
     <section id="purchases-view" class="view-section">
       <div class="card">
-        <div class="card-title">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
           <span>🧾 Material Purchases</span>
           <button class="btn btn-primary btn-sm" id="open-add-purchase-modal">+ Add Purchase</button>
         </div>
+        <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div style="font-size: 0.8rem; color: var(--text-muted);">Current month purchases displayed by default</div>
+          <input type="month" id="purchases-month-filter" class="form-input" style="width: auto; padding: 4px 8px; font-size: 0.82rem;">
+        </div>
         <div id="purchases-summary-container" class="grid-2" style="margin-bottom: 14px;">
           <div class="stat-card">
-            <span class="stat-label">Total Spent</span>
+            <span class="stat-label">This Month Spent</span>
             <span class="stat-value warning" id="purchase-total-spent">₹0</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Total Entries</span>
+            <span class="stat-label">Month Entries</span>
             <span class="stat-value" id="purchase-total-count">0</span>
           </div>
         </div>
