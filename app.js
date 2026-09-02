@@ -3573,6 +3573,9 @@ function startApp() {
     console.error('Setup listeners error:', err);
   }
 
+  // Render UI immediately so page is active with zero delay
+  renderAllViews();
+
   initDB().then(async () => {
     await loadAllData();
     renderAllViews();
