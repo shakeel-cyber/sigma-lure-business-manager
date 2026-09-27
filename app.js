@@ -1493,7 +1493,9 @@ if (document.readyState === 'loading') {
 
 function registerServiceWorker() {
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js').catch(err => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      if (reg) reg.update();
+    }).catch(err => {
       console.warn('SW registration skipped:', err);
     });
   }
@@ -3911,62 +3913,6 @@ function escapeHTML(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-function startApp() {
-  try {
-    setupEventListeners();
-    setupDefaultDates();
-    setupHistoryHandling();
-  } catch (err) {
-    console.error('Setup listeners error:', err);
-  }
-
-  // Render UI immediately so page is active with zero delay
-  renderAllViews();
-
-  initDB().then(async () => {
-    await loadAllData();
-    renderAllViews();
-    registerServiceWorker();
-  }).catch(err => {
-    console.error('DB Init error:', err);
-    renderAllViews();
-  });
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', startApp);
-} else {
-  startApp();
-}
-
-function registerServiceWorker() {
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js').then((reg) => {
-      if (reg) reg.update();
-    }).catch(err => {
-      console.warn('SW registration skipped:', err);
-    });
-  }
-}
-
-async function loadAllData() {
-  try {
-    state.shops = await getAll('shops');
-    state.customers = await getAll('customers');
-    state.sales = await getAll('sales');
-    state.purchases = await getAll('purchases');
-    state.expenses = await getAll('expenses');
-    state.plannedPurchases = await getAll('plannedPurchases');
-    state.catalog = await getAll('catalog');
-    state.newOrders = await getAll('newOrders');
-    state.sales.sort((a, b) => new Date(b.date) - new Date(a.date));
-    state.expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-    state.newOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  } catch (e) {
-    console.error('Failed loading DB data:', e);
-  }
 }
 
 /* ==========================================
