@@ -20,6 +20,7 @@
 
   <!-- Toast Notifications Container -->
   <div id="toast-container" class="toast-container"></div>
+  <input type="file" id="global-import-file-input" accept=".json" style="display: none;" onchange="window.handleImportFileSelect(event)">
 
   <!-- Header -->
   <header class="app-header">
@@ -73,7 +74,11 @@
             <span>This Month Overview</span>
             <span id="dash-month-label" style="font-size: 0.75rem; color: var(--accent);"></span>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="window.switchView('reports-view')" style="font-size:0.75rem; padding: 4px 10px;">📊 Compare / Past Months</button>
+          <div class="btn-action-group">
+            <button class="btn btn-sm btn-import" onclick="window.triggerImportData()" title="Import JSON Backup file">📥 Import Data</button>
+            <button class="btn btn-sm btn-export" onclick="window.triggerExportData()" title="Backup data to JSON file">📤 Backup</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.switchView('reports-view')" style="font-size:0.75rem; padding: 4px 10px;">📊 Reports</button>
+          </div>
         </div>
         <div class="grid-3" style="margin-bottom: 10px;">
           <div class="stat-card">
@@ -84,19 +89,21 @@
             <span class="stat-label">Purchases</span>
             <span class="stat-value warning" id="dash-month-purchases">₹0</span>
           </div>
-          <div class="stat-card" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3);">
-            <span class="stat-label" style="color: var(--success); font-weight: 700;">Actual Profit</span>
-            <span class="stat-value success" id="dash-month-profit">₹0</span>
+          <div class="stat-card" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25);">
+            <span class="stat-label" style="color: var(--danger);">Expenses</span>
+            <span class="stat-value danger" id="dash-month-expenses">₹0</span>
           </div>
         </div>
         <div class="grid-3">
-          <div class="stat-card">
-            <span class="stat-label">Received</span>
-            <span class="stat-value success" id="dash-month-received">₹0</span>
+          <div class="stat-card" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3);">
+            <span class="stat-label" style="color: var(--success); font-weight: 700;">Actual Net Profit</span>
+            <span class="stat-value success" id="dash-month-profit">₹0</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Pending</span>
-            <span class="stat-value danger" id="dash-month-pending">₹0</span>
+            <span class="stat-label">Received / Pending</span>
+            <div style="font-size: 0.85rem; margin-top: 4px;">
+              <span class="success" id="dash-month-received">₹0</span> / <span class="danger" id="dash-month-pending">₹0</span>
+            </div>
           </div>
           <div class="stat-card">
             <span class="stat-label">Lures Sold</span>
@@ -137,6 +144,22 @@
           <div>
             <div class="dash-btn-title">Pending Payments</div>
             <div class="dash-btn-subtitle">Collect unpaid dues</div>
+          </div>
+        </button>
+
+        <button class="dash-btn" data-target="expenses-view" onclick="window.switchView('expenses-view')">
+          <div class="dash-btn-icon">💸</div>
+          <div>
+            <div class="dash-btn-title">Expenses</div>
+            <div class="dash-btn-subtitle">Log operational costs</div>
+          </div>
+        </button>
+
+        <button class="dash-btn" data-target="budget-view" onclick="window.switchView('budget-view')">
+          <div class="dash-btn-icon">🎯</div>
+          <div>
+            <div class="dash-btn-title">Budget Planner</div>
+            <div class="dash-btn-subtitle">Capital & allocations</div>
           </div>
         </button>
 
@@ -514,6 +537,95 @@
           </div>
         </div>
         <div id="purchases-list-container"></div>
+      </div>
+    </section>
+
+    <!-- EXPENSES VIEW -->
+    <section id="expenses-view" class="view-section">
+      <div class="card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span>💸 Out-of-Business & Operational Expenses</span>
+          <div style="display: flex; gap: 8px;">
+            <input type="month" id="expense-month-filter" class="form-input" style="font-size:0.8rem; padding: 4px 8px; width: auto;" onchange="window.renderExpenses()">
+            <button class="btn btn-primary btn-sm" onclick="window.openAddExpenseModal()">+ Log Expense</button>
+          </div>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Log non-inventory business operational costs (Rent, Utilities, Packaging, Fuel/Courier, Tools, Ads, Salary).
+        </p>
+
+        <div class="grid-3" style="margin-bottom: 14px;">
+          <div class="stat-card" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25);">
+            <span class="stat-label" style="color: var(--danger);">Month Expenses</span>
+            <span class="stat-value danger" id="exp-month-total">₹0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Top Category</span>
+            <span class="stat-value" id="exp-month-top-cat" style="font-size:0.95rem; color: var(--accent);">N/A</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Expense Count</span>
+            <span class="stat-value" id="exp-month-count" style="color: var(--text-main);">0</span>
+          </div>
+        </div>
+
+        <div id="expenses-list-container"></div>
+      </div>
+    </section>
+
+    <!-- BUDGET PLANNER VIEW -->
+    <section id="budget-view" class="view-section">
+      <div class="card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span>🎯 Monthly Budget & Capital Planner</span>
+          <div style="display: flex; gap: 8px;">
+            <input type="month" id="budget-month-select" class="form-input" style="font-size:0.8rem; padding: 4px 8px; width: auto;" onchange="window.renderBudget()">
+            <button class="btn btn-primary btn-sm" onclick="window.openAddBudgetModal()">+ Add Budget Item</button>
+          </div>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Plan starting account capital and allocate fundings for raw materials, molds, packaging, or reserves. Marking items completed serves as a reference and does not alter actual profit or expenses.
+        </p>
+
+        <!-- Starting Capital Bar -->
+        <div class="card" style="background: var(--bg-input); padding: 12px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="flex: 1; min-width: 220px;">
+              <label class="form-label" style="font-size:0.75rem; margin-bottom: 4px;">Starting Account Balance / Capital (₹)</label>
+              <div style="display: flex; gap: 6px;">
+                <input type="number" id="budget-capital-input" class="form-input" placeholder="e.g. 50000" min="0" step="any" style="font-size:0.9rem; font-weight:700;">
+                <button class="btn btn-secondary btn-sm" onclick="window.saveBudgetCapital()">Save Capital</button>
+              </div>
+            </div>
+            <div style="display: flex; gap: 14px; flex-wrap: wrap;">
+              <div>
+                <div style="font-size:0.72rem; color: var(--text-muted); text-transform:uppercase;">Allocated Budget</div>
+                <div style="font-size: 1.05rem; font-weight: 800; color: var(--accent);" id="bdg-stat-allocated">₹0</div>
+              </div>
+              <div>
+                <div style="font-size:0.72rem; color: var(--text-muted); text-transform:uppercase;">Unallocated Capital</div>
+                <div style="font-size: 1.05rem; font-weight: 800; color: var(--success);" id="bdg-stat-remaining">₹0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3" style="margin-bottom: 14px;">
+          <div class="stat-card">
+            <span class="stat-label">Total Starting Capital</span>
+            <span class="stat-value" id="bdg-stat-capital" style="color:var(--text-main);">₹0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Planned Allocations</span>
+            <span class="stat-value" id="bdg-stat-items-count" style="color:var(--accent);">0</span>
+          </div>
+          <div class="stat-card" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+            <span class="stat-label" style="color:var(--success);">Purchased / Completed</span>
+            <span class="stat-value success" id="bdg-stat-completed">0 / 0</span>
+          </div>
+        </div>
+
+        <div id="budget-list-container"></div>
       </div>
     </section>
 
@@ -1080,6 +1192,186 @@
     </div>
   </div>
 
+  <!-- Edit Sale Modal -->
+  <div id="edit-sale-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <div class="modal-title" style="color: var(--accent);">✏️ Edit Sale / Courier Charges</div>
+        <button class="modal-close close-modal-btn">✕</button>
+      </div>
+      <form id="edit-sale-form">
+        <input type="hidden" id="edit-sale-id">
+        <div class="form-group">
+          <label class="form-label">Buyer Name</label>
+          <div style="font-weight:700; color:#fff;" id="edit-sale-buyer-info"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Sale Date *</label>
+          <input type="date" id="edit-sale-date" class="form-input" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">🚚 Shipping / Courier Charges (₹)</label>
+          <input type="number" id="edit-sale-shipping" class="form-input" placeholder="0" min="0" step="any" oninput="window.calcEditSaleTotal()">
+          <small style="color:var(--text-muted); font-size: 0.75rem;">Enter courier fees paid for shipping after order dispatch.</small>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 10px;">
+          <div>
+            <label class="form-label">Discount Amount (₹)</label>
+            <input type="number" id="edit-sale-discount" class="form-input" placeholder="0" min="0" step="any" oninput="window.calcEditSaleTotal()">
+          </div>
+          <div>
+            <label class="form-label">Paid Amount (₹)</label>
+            <input type="number" id="edit-sale-paid" class="form-input" placeholder="0" min="0" step="any" oninput="window.calcEditSaleTotal()">
+          </div>
+        </div>
+
+        <div class="card" style="background: var(--bg-input); padding: 12px; margin-bottom: 12px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-size: 0.85rem;">
+            <span>Lures Subtotal:</span>
+            <span id="edit-sale-calc-subtotal" style="font-weight:700;">₹0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-size: 0.85rem;">
+            <span>Shipping / Courier:</span>
+            <span id="edit-sale-calc-shipping" style="color: var(--accent);">₹0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom: 4px; font-size: 0.85rem;">
+            <span>Discount:</span>
+            <span id="edit-sale-calc-discount" style="color: var(--danger);">-₹0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-weight:800; font-size: 1.1rem; border-top: 1px solid var(--border-color); padding-top: 6px;">
+            <span>Final Total:</span>
+            <span id="edit-sale-calc-total" style="color: var(--success);">₹0</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Payment Status</label>
+          <select id="edit-sale-status" class="form-select">
+            <option value="Completed">Completed (Paid / Dispatched)</option>
+            <option value="Pending">Pending (Partially Paid / Unpaid)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 14px;">
+          <button type="submit" class="btn btn-primary btn-block">Update Sale</button>
+          <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add / Edit Expense Modal -->
+  <div id="expense-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <div class="modal-title" id="expense-modal-title" style="color: var(--accent);">💸 Log Operational Expense</div>
+        <button class="modal-close close-modal-btn">✕</button>
+      </div>
+      <form id="expense-form">
+        <input type="hidden" id="expense-id">
+        <div class="form-group">
+          <label class="form-label">Expense Date *</label>
+          <input type="date" id="expense-date" class="form-input" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select id="expense-category" class="form-select" required>
+            <option value="Packaging">📦 Packaging Materials</option>
+            <option value="Fuel / Transport">🚚 Fuel & Courier / Transport</option>
+            <option value="Rent">🏢 Shop / Factory Rent</option>
+            <option value="Electricity / Utilities">⚡ Electricity & Utilities</option>
+            <option value="Tools & Equipment">🛠️ Tools, Molds & Equipment</option>
+            <option value="Marketing / Ads">📢 Marketing & Ads</option>
+            <option value="Salary & Wages">👥 Salary & Helper Wages</option>
+            <option value="Miscellaneous">🌀 Miscellaneous</option>
+          </select>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Amount (₹) *</label>
+            <input type="number" id="expense-amount" class="form-input" placeholder="0" min="1" step="any" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Payment Mode</label>
+            <select id="expense-payment-mode" class="form-select">
+              <option value="UPI">UPI / GPay / PhonePe</option>
+              <option value="Cash">Cash</option>
+              <option value="Bank">Bank Transfer</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description / Notes</label>
+          <input type="text" id="expense-notes" class="form-input" placeholder="e.g. 500 bubble mailers, workshop rent">
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 14px;">
+          <button type="submit" class="btn btn-primary btn-block">Save Expense</button>
+          <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add / Edit Budget Item Modal -->
+  <div id="budget-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <div class="modal-title" id="budget-modal-title" style="color: var(--accent);">🎯 Add Budget Allocation Item</div>
+        <button class="modal-close close-modal-btn">✕</button>
+      </div>
+      <form id="budget-form">
+        <input type="hidden" id="budget-id">
+        <div class="form-group">
+          <label class="form-label">Item / Purpose Name *</label>
+          <input type="text" id="budget-name" class="form-input" required placeholder="e.g. Lead & Hooks Purchase, Workshop Rent">
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Allocated Amount (₹) *</label>
+            <input type="number" id="budget-amount" class="form-input" placeholder="0" min="1" step="any" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select id="budget-status" class="form-select">
+              <option value="Pending">⏳ Pending</option>
+              <option value="Completed">✅ Completed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select id="budget-category" class="form-select">
+            <option value="Raw Materials">🎣 Raw Materials & Stock</option>
+            <option value="Tools & Molds">🛠️ Tools, Molds & Hardware</option>
+            <option value="Packaging">📦 Packaging & Mailers</option>
+            <option value="Rent & Utilities">🏢 Rent & Utilities</option>
+            <option value="Emergency Reserve">🛡️ Buffer / Emergency Reserve</option>
+            <option value="General">🌀 General Allocation</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Notes / Reference</label>
+          <input type="text" id="budget-notes" class="form-input" placeholder="e.g. Need 20kg lead, order by 5th">
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 14px;">
+          <button type="submit" class="btn btn-primary btn-block">Save Budget Item</button>
+          <button type="button" class="btn btn-secondary close-modal-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Delete Confirmation Modal -->
   <div id="delete-confirm-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 380px;">
@@ -1098,6 +1390,6 @@
   <!-- Printable Container for PDF Export -->
   <div id="report-print-area"></div>
 
-  <script src="app.js?v=30"></script>
+  <script src="app.js?v=32"></script>
 </body>
 </html>

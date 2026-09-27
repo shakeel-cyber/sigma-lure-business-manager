@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'SigmaLuresDB';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 
 // Default Preloaded Product Catalog with Wholesale & Retail Prices
 const DEFAULT_CATALOG = [
@@ -25,6 +25,8 @@ const fallbackData = {
   customers: [],
   sales: [],
   purchases: [],
+  expenses: [],
+  budgets: [],
   plannedPurchases: [],
   catalog: DEFAULT_CATALOG,
   settings: []
@@ -39,6 +41,8 @@ function seedFallbackDemoData() {
       if (Array.isArray(parsed.customers)) parsed.customers = parsed.customers.filter(c => !c.id || !c.id.startsWith('cust_demo_'));
       if (Array.isArray(parsed.sales)) parsed.sales = parsed.sales.filter(s => !s.id || !s.id.startsWith('sale_demo_'));
       if (Array.isArray(parsed.purchases)) parsed.purchases = parsed.purchases.filter(p => !p.id || !p.id.startsWith('purch_demo_'));
+      if (Array.isArray(parsed.expenses)) parsed.expenses = parsed.expenses.filter(e => !e.id || !e.id.startsWith('exp_demo_'));
+      if (Array.isArray(parsed.budgets)) parsed.budgets = parsed.budgets.filter(b => !b.id || !b.id.startsWith('bdg_demo_'));
       Object.assign(fallbackData, parsed);
       return;
     }
@@ -48,6 +52,8 @@ function seedFallbackDemoData() {
   fallbackData.customers = [];
   fallbackData.sales = [];
   fallbackData.purchases = [];
+  fallbackData.expenses = [];
+  fallbackData.budgets = [];
   fallbackData.plannedPurchases = [];
   fallbackData.settings = [];
 
@@ -107,6 +113,18 @@ function initDB() {
           purchStore.createIndex('supplier', 'supplier', { unique: false });
         }
 
+        if (!db.objectStoreNames.contains('expenses')) {
+          const expStore = db.createObjectStore('expenses', { keyPath: 'id' });
+          expStore.createIndex('date', 'date', { unique: false });
+          expStore.createIndex('category', 'category', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains('budgets')) {
+          const budgetStore = db.createObjectStore('budgets', { keyPath: 'id' });
+          budgetStore.createIndex('month', 'month', { unique: false });
+          budgetStore.createIndex('status', 'status', { unique: false });
+        }
+
         if (!db.objectStoreNames.contains('plannedPurchases')) {
           const planStore = db.createObjectStore('plannedPurchases', { keyPath: 'id' });
           planStore.createIndex('status', 'status', { unique: false });
@@ -138,6 +156,8 @@ function initDB() {
             for (const c of fallbackData.customers) await saveItem('customers', c);
             for (const sl of fallbackData.sales) await saveItem('sales', sl);
             for (const p of fallbackData.purchases) await saveItem('purchases', p);
+            for (const e of fallbackData.expenses) await saveItem('expenses', e);
+            for (const b of fallbackData.budgets) await saveItem('budgets', b);
           }
         } catch (err) {}
 
@@ -249,6 +269,8 @@ async function exportBackupJSON() {
     customers: await getAll('customers'),
     sales: await getAll('sales'),
     purchases: await getAll('purchases'),
+    expenses: await getAll('expenses'),
+    budgets: await getAll('budgets'),
     plannedPurchases: await getAll('plannedPurchases'),
     catalog: await getAll('catalog'),
     settings: await getAll('settings')
@@ -265,7 +287,7 @@ async function importBackupJSON(jsonContent) {
     throw new Error('Invalid JSON backup file format');
   }
 
-  if (!parsed || (parsed.app !== 'Sigma Lures Business Manager' && !parsed.sales)) {
+  if (!parsed || typeof parsed !== 'object') {
     throw new Error('Unrecognized backup format for Sigma Lures');
   }
 
@@ -278,13 +300,15 @@ async function importBackupJSON(jsonContent) {
     }
   };
 
-  await putMany('shops', parsed.shops);
-  await putMany('customers', parsed.customers);
-  await putMany('sales', parsed.sales);
-  await putMany('purchases', parsed.purchases);
-  await putMany('plannedPurchases', parsed.plannedPurchases);
-  await putMany('catalog', parsed.catalog);
-  await putMany('settings', parsed.settings);
+  if (parsed.shops) await putMany('shops', parsed.shops);
+  if (parsed.customers) await putMany('customers', parsed.customers);
+  if (parsed.sales) await putMany('sales', parsed.sales);
+  if (parsed.purchases) await putMany('purchases', parsed.purchases);
+  if (parsed.expenses) await putMany('expenses', parsed.expenses);
+  if (parsed.budgets) await putMany('budgets', parsed.budgets);
+  if (parsed.plannedPurchases) await putMany('plannedPurchases', parsed.plannedPurchases);
+  if (parsed.catalog) await putMany('catalog', parsed.catalog);
+  if (parsed.settings) await putMany('settings', parsed.settings);
 
   return true;
 }

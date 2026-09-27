@@ -420,9 +420,13 @@ const state = {
   customers: [],
   sales: [],
   purchases: [],
+  expenses: [],
+  budgets: [],
   plannedPurchases: [],
   catalog: [],
+  settings: [],
   newOrders: [],
+  currentEditingSale: null,
   currentBuyerType: 'shop',
   currentCustomerType: 'wholesale',
   currentOrderBuyerType: 'shop',
@@ -1501,10 +1505,12 @@ async function loadAllData() {
     state.customers = await getAll('customers');
     state.sales = await getAll('sales');
     state.purchases = await getAll('purchases');
+    state.expenses = await getAll('expenses');
     state.plannedPurchases = await getAll('plannedPurchases');
     state.catalog = await getAll('catalog');
     state.newOrders = await getAll('newOrders');
     state.sales.sort((a, b) => new Date(b.date) - new Date(a.date));
+    state.expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
     state.newOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (e) {
     console.error('Failed loading DB data:', e);
@@ -1852,67 +1858,18 @@ function setupEventListeners() {
     if (state.currentInvoiceBlob) {
       downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
     }
-  });
+  document.getElementById('edit-sale-form')?.addEventListener('submit', handleSaveEditedSale);
+  document.getElementById('expense-form')?.addEventListener('submit', handleSaveExpense);
+  document.getElementById('budget-form')?.addEventListener('submit', handleSaveBudgetItem);
+
+  document.getElementById('export-backup-btn')?.addEventListener('click', () => window.triggerExportData());
+  document.getElementById('import-backup-file')?.addEventListener('change', (e) => window.handleImportFileSelect(e));
 
   setupTouchSwipeNavigation();
 }
 
 function setupTouchSwipeNavigation() {
-  const viewsSequence = [
-    'dashboard-view',
-    'new-orders-view',
-    'shops-view',
-    'customers-view',
-    'sales-view',
-    'pending-view'
-  ];
-
-  let touchStartX = 0;
-  let touchStartY = 0;
-  let touchStartTime = 0;
-
-  document.addEventListener('touchstart', (e) => {
-    if (e.touches && e.touches.length === 1) {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchStartTime = Date.now();
-    }
-  }, { passive: true });
-
-  document.addEventListener('touchend', (e) => {
-    if (state.activeModal) return;
-    if (e.target && e.target.closest('button, input, select, textarea, a, .btn, .nav-item, .modal-overlay')) {
-      return;
-    }
-
-    const duration = Date.now() - touchStartTime;
-    if (duration > 800) return;
-
-    if (e.changedTouches && e.changedTouches.length === 1) {
-      const diffX = e.changedTouches[0].clientX - touchStartX;
-      const diffY = e.changedTouches[0].clientY - touchStartY;
-
-      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.2) {
-        const activeSec = document.querySelector('.view-section.active');
-        if (!activeSec) return;
-        const currentViewId = activeSec.id;
-        const currentIndex = viewsSequence.indexOf(currentViewId);
-
-        if (currentIndex !== -1) {
-          if (diffX < 0) {
-            // Swipe Left -> Next section
-            const nextIndex = (currentIndex + 1) % viewsSequence.length;
-            switchView(viewsSequence[nextIndex]);
-          } else {
-            // Swipe Right -> Previous section
-            const prevIndex = (currentIndex - 1 + viewsSequence.length) % viewsSequence.length;
-            switchView(viewsSequence[prevIndex]);
-          }
-        }
-      }
-    }
-  }, { passive: true });
-
+  // Swipe navigation disabled per user preference. Click bottom nav tabs / top buttons to navigate.
   const brandHomeBtn = document.getElementById('brand-home-btn');
   if (brandHomeBtn) {
     brandHomeBtn.addEventListener('click', () => switchView('dashboard-view'));
@@ -1990,6 +1947,8 @@ function renderAllViews() {
   renderCustomersList();
   renderSalesList();
   renderPendingPaymentsList();
+  renderExpenses();
+  renderBudget();
   renderPurchasesList();
   renderPlannedPurchasesList();
   renderInvoicesList();
@@ -2075,13 +2034,15 @@ function renderDashboardStats() {
 
   const thisMonthSales = state.sales.filter(s => s.date && s.date.startsWith(currentMonthStr));
   const thisMonthPurchases = state.purchases.filter(p => p.date && p.date.startsWith(currentMonthStr));
+  const thisMonthExpenses = (state.expenses || []).filter(e => e.date && e.date.startsWith(currentMonthStr));
 
   const totalSalesVal = thisMonthSales.reduce((acc, s) => acc + (s.total || 0), 0);
   const totalReceivedVal = thisMonthSales.reduce((acc, s) => acc + (s.paid || 0), 0);
   const totalPendingVal = thisMonthSales.reduce((acc, s) => acc + (s.pending || 0), 0);
   const totalPurchasesVal = thisMonthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
+  const totalExpensesVal = thisMonthExpenses.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
 
-  let thisMonthProfit = 0;
+  let thisMonthGrossProfit = 0;
   let totalLuresSold = 0;
   thisMonthSales.forEach(s => {
     if (s.items && Array.isArray(s.items)) {
@@ -2095,17 +2056,20 @@ function renderDashboardStats() {
         if (cfg) {
           const sellPrice = (item.sellingPrice !== undefined && item.sellingPrice !== null) ? item.sellingPrice : (saleType === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice);
           const pUnit = sellPrice - cfg.productionCost;
-          thisMonthProfit += q * pUnit;
+          thisMonthGrossProfit += q * pUnit;
         }
       });
     }
   });
 
+  const thisMonthNetProfit = thisMonthGrossProfit - totalExpensesVal;
+
   setText('dash-month-sales', `₹${Math.round(totalSalesVal).toLocaleString('en-IN')}`);
   setText('dash-month-purchases', `₹${Math.round(totalPurchasesVal).toLocaleString('en-IN')}`);
+  setText('dash-month-expenses', `₹${Math.round(totalExpensesVal).toLocaleString('en-IN')}`);
   setText('dash-month-received', `₹${Math.round(totalReceivedVal).toLocaleString('en-IN')}`);
   setText('dash-month-pending', `₹${Math.round(totalPendingVal).toLocaleString('en-IN')}`);
-  setText('dash-month-profit', `₹${Math.round(thisMonthProfit).toLocaleString('en-IN')}`);
+  setText('dash-month-profit', `₹${Math.round(thisMonthNetProfit).toLocaleString('en-IN')}`);
   setText('dash-month-lures-sold', `${totalLuresSold} pcs`);
 
   renderProfitPerLure();
@@ -2817,9 +2781,10 @@ function renderSalesList() {
             <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 6px;">(Paid: ₹${Math.round(s.paid).toLocaleString('en-IN')} | Pending: ₹${Math.round(s.pending).toLocaleString('en-IN')})</span>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button class="btn btn-secondary btn-sm" onclick="window.openUpdatePaymentModal('${s.id}')">Update Pay</button>
-            <button class="btn btn-primary btn-sm" onclick="window.openInvoiceModal('${s.id}')">Invoice</button>
-            <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteSale('${s.id}')">✕</button>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.openEditSaleModal('${s.id}')">✏️ Edit</button>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); window.openUpdatePaymentModal('${s.id}')">Pay</button>
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); window.openInvoiceModal('${s.id}')">Invoice</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); window.confirmDeleteSale('${s.id}')">✕</button>
           </div>
         </div>
         <!-- EXPANDABLE ACCORDION DRAWER -->
@@ -3215,6 +3180,18 @@ function renderMonthlyReport() {
     }
   });
 
+  const bdgRowsHtml = monthBudgets.length === 0
+    ? `<tr><td colspan="5" style="text-align:center; color: var(--text-muted); padding: 12px;">No budget allocations logged for ${monthStr}</td></tr>`
+    : monthBudgets.map(b => `
+        <tr>
+          <td><strong style="color:#ffffff;">${escapeHTML(b.name)}</strong></td>
+          <td><span style="color: var(--text-muted);">${escapeHTML(b.category || 'General')}</span></td>
+          <td>${b.status === 'Completed' ? '<span class="badge badge-budget-completed">✅ Completed</span>' : '<span class="badge badge-budget-pending">⏳ Pending</span>'}</td>
+          <td style="font-size: 0.8rem; color: var(--text-muted);">${b.notes ? escapeHTML(b.notes) : '-'}</td>
+          <td style="text-align:right; font-weight:800; color: var(--accent);">₹${Math.round(b.amount || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+
   container.innerHTML = `
     <div class="grid-3" style="margin-bottom: 12px;">
       <div class="stat-card">
@@ -3258,6 +3235,31 @@ function renderMonthlyReport() {
       <div class="stat-card">
         <span class="stat-label">Free Jigs</span>
         <span class="stat-value" style="color:var(--accent);">${totalFreeJigs}</span>
+      </div>
+    </div>
+
+    <div class="card" style="background: var(--bg-input); margin-top: 14px;">
+      <div class="card-title" style="font-size:0.88rem; color:var(--accent);">🎯 Monthly Capital & Budget Allocation Plan (${monthStr})</div>
+      <div class="grid-3" style="margin-bottom: 10px;">
+        <div style="font-size:0.82rem;">Capital: <strong style="color:#fff;">₹${Math.round(capitalVal).toLocaleString('en-IN')}</strong></div>
+        <div style="font-size:0.82rem;">Allocated: <strong style="color:var(--accent);">₹${Math.round(totalAllocated).toLocaleString('en-IN')}</strong></div>
+        <div style="font-size:0.82rem;">Unallocated: <strong style="color:var(--success);">₹${Math.round(remainingCapital).toLocaleString('en-IN')}</strong></div>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table" style="font-size: 0.82rem;">
+          <thead>
+            <tr>
+              <th>Planned Item</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Notes / Ref</th>
+              <th style="text-align: right;">Allocated</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bdgRowsHtml}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -3334,15 +3336,24 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
   
   const monthSales = state.sales.filter(s => s.date && s.date.startsWith(monthStr));
   const monthPurchases = state.purchases.filter(p => p.date && p.date.startsWith(monthStr));
+  const monthExpenses = (state.expenses || []).filter(e => e.date && e.date.startsWith(monthStr));
+
+  const capSetting = (state.settings || []).find(s => s.key === `budget_capital_${monthStr}`);
+  const capitalVal = capSetting ? parseFloat(capSetting.value) || 0 : 0;
+  const monthBudgets = (state.budgets || []).filter(b => b.month === monthStr || (b.createdAt && b.createdAt.startsWith(monthStr)));
 
   const totalSales = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
   const totalPurchases = monthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
+  const totalExpenses = monthExpenses.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+  const totalAllocated = monthBudgets.reduce((acc, b) => acc + (parseFloat(b.amount) || 0), 0);
+  const remainingCapital = Math.max(0, capitalVal - totalAllocated);
+
   const totalReceived = monthSales.reduce((acc, s) => acc + (s.paid || 0), 0);
   const totalPending = monthSales.reduce((acc, s) => acc + (s.pending || 0), 0);
   const totalDiscounts = monthSales.reduce((acc, s) => acc + (s.discount || 0), 0);
   const totalFreeJigs = monthSales.reduce((acc, s) => acc + (s.freeQty || 0), 0);
 
-  let monthProfit = 0;
+  let grossProfit = 0;
   const modelStats = {};
   LURE_PROFIT_CONFIG.forEach(cfg => {
     ['wholesale', 'retail'].forEach(type => {
@@ -3374,10 +3385,12 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
         const profitPerLure = itemSellingPrice - modelStats[key].productionCost;
         modelStats[key].totalSold += qty;
         modelStats[key].totalProfit += qty * profitPerLure;
-        monthProfit += qty * profitPerLure;
+        grossProfit += qty * profitPerLure;
       }
     });
   });
+
+  const netProfit = grossProfit - totalExpenses;
 
   const salesRows = monthSales.length === 0
     ? `<tr><td colspan="7" style="text-align:center;">No sales logged for this month</td></tr>`
@@ -3409,26 +3422,29 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
         </tr>
       `).join('');
 
-  const keysToRender = [];
-  LURE_PROFIT_CONFIG.forEach(cfg => {
-    keysToRender.push(`${cfg.model}_${cfg.weight}_wholesale`.toLowerCase());
-    keysToRender.push(`${cfg.model}_${cfg.weight}_retail`.toLowerCase());
-  });
+  const expRows = monthExpenses.length === 0
+    ? `<tr><td colspan="5" style="text-align:center;">No operational expenses logged for this month</td></tr>`
+    : monthExpenses.map(e => `
+        <tr>
+          <td>${e.date}</td>
+          <td><strong>${escapeHTML(e.category)}</strong></td>
+          <td>${e.paymentMode || 'UPI'}</td>
+          <td>${e.notes ? escapeHTML(e.notes) : '-'}</td>
+          <td style="text-align:right;">₹${Math.round(e.amount || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
 
-  const lureRows = keysToRender.map(key => {
-    const stat = modelStats[key];
-    return `
-      <tr>
-        <td><strong>${escapeHTML(stat.model)} ${escapeHTML(stat.weight)}</strong></td>
-        <td>${stat.type.toUpperCase()}</td>
-        <td style="text-align:right;">₹${Math.round(stat.sellingPrice)}</td>
-        <td style="text-align:right;">₹${Math.round(stat.productionCost)}</td>
-        <td style="text-align:right;">₹${Math.round(stat.profitPerLure)}</td>
-        <td style="text-align:right; font-weight:bold;">${stat.totalSold} pcs</td>
-        <td style="text-align:right; font-weight:bold;">₹${Math.round(stat.totalProfit).toLocaleString('en-IN')}</td>
-      </tr>
-    `;
-  }).join('');
+  const pdfBdgRows = monthBudgets.length === 0
+    ? `<tr><td colspan="5" style="text-align:center;">No budget allocation items logged for this month</td></tr>`
+    : monthBudgets.map(b => `
+        <tr>
+          <td><strong>${escapeHTML(b.name)}</strong></td>
+          <td>${escapeHTML(b.category || 'General')}</td>
+          <td>${b.status === 'Completed' ? '✅ Completed' : '⏳ Pending'}</td>
+          <td>${b.notes ? escapeHTML(b.notes) : '-'}</td>
+          <td style="text-align:right;">₹${Math.round(b.amount || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
 
   const printArea = document.getElementById('report-print-area');
   if (!printArea) return;
@@ -3450,19 +3466,19 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
       <tr>
         <th>Total Sales</th>
         <td>₹${Math.round(totalSales).toLocaleString('en-IN')}</td>
-        <th>Total Purchases</th>
+        <th>Material Purchases</th>
         <td>₹${Math.round(totalPurchases).toLocaleString('en-IN')}</td>
       </tr>
       <tr>
-        <th>Actual Profit</th>
-        <td style="font-weight:bold; color: #059669;">₹${Math.round(monthProfit).toLocaleString('en-IN')}</td>
-        <th>Amount Received</th>
-        <td>₹${Math.round(totalReceived).toLocaleString('en-IN')}</td>
+        <th>Operational Expenses</th>
+        <td style="color: #dc2626; font-weight:bold;">₹${Math.round(totalExpenses).toLocaleString('en-IN')}</td>
+        <th>Actual Net Profit</th>
+        <td style="font-weight:bold; color: #059669; font-size: 1rem;">₹${Math.round(netProfit).toLocaleString('en-IN')}</td>
       </tr>
       <tr>
-        <th>Orders Count</th>
-        <td>${monthSales.length} orders</td>
-        <th>Month Pending Dues</th>
+        <th>Amount Received</th>
+        <td>₹${Math.round(totalReceived).toLocaleString('en-IN')}</td>
+        <th>Pending Dues</th>
         <td>₹${Math.round(totalPending).toLocaleString('en-IN')}</td>
       </tr>
       <tr>
@@ -3508,21 +3524,45 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
       </tbody>
     </table>
 
-    <h2 style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;">4. Lure Model Sales & Profit Matrix</h2>
+    <h2 style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;">4. Operational Expenses Log</h2>
     <table class="print-table">
       <thead>
         <tr>
-          <th>Model</th>
-          <th>Type</th>
-          <th style="text-align:right;">Selling Price</th>
-          <th style="text-align:right;">Prod. Cost</th>
-          <th style="text-align:right;">Unit Profit</th>
-          <th style="text-align:right;">Quantity Sold</th>
-          <th style="text-align:right;">Total Profit</th>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Payment Mode</th>
+          <th>Notes</th>
+          <th style="text-align:right;">Amount</th>
         </tr>
       </thead>
       <tbody>
-        ${lureRows}
+        ${expRows}
+      </tbody>
+    </table>
+
+    <h2 style="font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px;">5. Monthly Capital & Budget Allocation Plan (Reference)</h2>
+    <table class="print-table">
+      <tr>
+        <th>Starting Account Capital</th>
+        <td>₹${Math.round(capitalVal).toLocaleString('en-IN')}</td>
+        <th>Total Allocated Budget</th>
+        <td>₹${Math.round(totalAllocated).toLocaleString('en-IN')}</td>
+        <th>Unallocated Capital</th>
+        <td>₹${Math.round(remainingCapital).toLocaleString('en-IN')}</td>
+      </tr>
+    </table>
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Planned Item / Purpose</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Notes / Reference</th>
+          <th style="text-align:right;">Allocated Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pdfBdgRows}
       </tbody>
     </table>
   `;
@@ -3799,15 +3839,453 @@ async function loadAllData() {
     state.customers = await getAll('customers');
     state.sales = await getAll('sales');
     state.purchases = await getAll('purchases');
+    state.expenses = await getAll('expenses');
     state.plannedPurchases = await getAll('plannedPurchases');
     state.catalog = await getAll('catalog');
     state.newOrders = await getAll('newOrders');
     state.sales.sort((a, b) => new Date(b.date) - new Date(a.date));
+    state.expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
     state.newOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (e) {
     console.error('Failed loading DB data:', e);
   }
 }
+
+/* ==========================================
+ * EDIT SALE & COURIER CHARGES HANDLERS
+ * ========================================== */
+window.openEditSaleModal = (saleId) => {
+  const sale = state.sales.find(s => s.id === saleId);
+  if (!sale) return;
+
+  state.currentEditingSale = JSON.parse(JSON.stringify(sale));
+
+  const buyerInfo = document.getElementById('edit-sale-buyer-info');
+  if (buyerInfo) {
+    buyerInfo.innerHTML = `${escapeHTML(sale.buyerName)} <span style="color:var(--text-muted); font-size:0.8rem;">(${sale.buyerType} • Inv: ${sale.invoiceNo})</span>`;
+  }
+
+  const dateInput = document.getElementById('edit-sale-date');
+  if (dateInput) dateInput.value = sale.date || new Date().toISOString().split('T')[0];
+
+  const shippingInput = document.getElementById('edit-sale-shipping');
+  if (shippingInput) shippingInput.value = sale.shipping || sale.shippingCharge || 0;
+
+  const discountInput = document.getElementById('edit-sale-discount');
+  if (discountInput) discountInput.value = sale.discount || 0;
+
+  const paidInput = document.getElementById('edit-sale-paid');
+  if (paidInput) paidInput.value = sale.paid || 0;
+
+  const statusSelect = document.getElementById('edit-sale-status');
+  if (statusSelect) statusSelect.value = sale.status || 'Completed';
+
+  const saleIdInput = document.getElementById('edit-sale-id');
+  if (saleIdInput) saleIdInput.value = sale.id;
+
+  window.calcEditSaleTotal();
+  openModal('edit-sale-modal');
+};
+
+window.calcEditSaleTotal = () => {
+  if (!state.currentEditingSale) return;
+  const items = state.currentEditingSale.items || [];
+  const subtotal = items.reduce((acc, i) => acc + (parseFloat(i.amount) || (parseFloat(i.qty || 1) * parseFloat(i.sellingPrice || 0))), 0);
+
+  const shipping = parseFloat(document.getElementById('edit-sale-shipping')?.value) || 0;
+  const discount = parseFloat(document.getElementById('edit-sale-discount')?.value) || 0;
+  const finalTotal = Math.max(0, subtotal + shipping - discount);
+
+  setText('edit-sale-calc-subtotal', `₹${Math.round(subtotal).toLocaleString('en-IN')}`);
+  setText('edit-sale-calc-shipping', `₹${Math.round(shipping).toLocaleString('en-IN')}`);
+  setText('edit-sale-calc-discount', `-₹${Math.round(discount).toLocaleString('en-IN')}`);
+  setText('edit-sale-calc-total', `₹${Math.round(finalTotal).toLocaleString('en-IN')}`);
+};
+
+async function handleSaveEditedSale(e) {
+  e.preventDefault();
+  const saleId = document.getElementById('edit-sale-id')?.value;
+  const sale = state.sales.find(s => s.id === saleId);
+  if (!sale) return;
+
+  const newDate = document.getElementById('edit-sale-date')?.value || sale.date;
+  const shipping = parseFloat(document.getElementById('edit-sale-shipping')?.value) || 0;
+  const discount = parseFloat(document.getElementById('edit-sale-discount')?.value) || 0;
+  const paid = parseFloat(document.getElementById('edit-sale-paid')?.value) || 0;
+  const status = document.getElementById('edit-sale-status')?.value || 'Completed';
+
+  const subtotal = (sale.items || []).reduce((acc, i) => acc + (parseFloat(i.amount) || (parseFloat(i.qty || 1) * parseFloat(i.sellingPrice || 0))), 0);
+  const total = Math.max(0, subtotal + shipping - discount);
+  const pending = Math.max(0, total - paid);
+
+  sale.date = newDate;
+  sale.shipping = shipping;
+  sale.shippingCharge = shipping;
+  sale.discount = discount;
+  sale.paid = paid;
+  sale.subtotal = subtotal;
+  sale.total = total;
+  sale.pending = pending;
+  sale.status = pending === 0 ? 'Completed' : status;
+
+  await saveItem('sales', sale);
+  closeModal('edit-sale-modal');
+  renderAllViews();
+  showToast('Sale & courier charges updated!');
+}
+
+/* ==========================================
+ * OPERATIONAL EXPENSES HANDLERS
+ * ========================================== */
+window.renderExpenses = () => {
+  const container = document.getElementById('expenses-list-container');
+  if (!container) return;
+
+  const monthFilter = document.getElementById('expense-month-filter');
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  if (monthFilter && !monthFilter.value) {
+    monthFilter.value = currentMonthStr;
+  }
+
+  const monthStr = monthFilter?.value || currentMonthStr;
+  const monthExps = (state.expenses || []).filter(e => e.date && e.date.startsWith(monthStr));
+
+  const totalSpent = monthExps.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+  setText('exp-month-total', `₹${Math.round(totalSpent).toLocaleString('en-IN')}`);
+  setText('exp-month-count', monthExps.length);
+
+  const catTotals = {};
+  monthExps.forEach(e => {
+    catTotals[e.category] = (catTotals[e.category] || 0) + (parseFloat(e.amount) || 0);
+  });
+  let topCat = 'N/A';
+  let maxCatVal = 0;
+  Object.keys(catTotals).forEach(cat => {
+    if (catTotals[cat] > maxCatVal) {
+      maxCatVal = catTotals[cat];
+      topCat = cat;
+    }
+  });
+  setText('exp-month-top-cat', topCat !== 'N/A' ? `${topCat} (₹${Math.round(maxCatVal)})` : 'N/A');
+
+  if (monthExps.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 16px;">No operational expenses logged for ${monthStr}.</p>`;
+    return;
+  }
+
+  container.innerHTML = monthExps.map(e => `
+    <div class="list-item">
+      <div class="list-item-header">
+        <span class="list-item-title">${escapeHTML(e.category)}</span>
+        <span class="badge badge-expense">₹${Math.round(e.amount).toLocaleString('en-IN')}</span>
+      </div>
+      <div class="list-item-sub">
+        Date: <strong>${e.date}</strong> • Mode: <strong>${e.paymentMode || 'UPI'}</strong> ${e.notes ? `• ${escapeHTML(e.notes)}` : ''}
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px;">
+        <button class="btn btn-secondary btn-sm" onclick="window.openEditExpenseModal('${e.id}')">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteExpense('${e.id}')">✕</button>
+      </div>
+    </div>
+  `).join('');
+};
+
+window.openAddExpenseModal = () => {
+  const form = document.getElementById('expense-form');
+  if (form) form.reset();
+  setText('expense-modal-title', '💸 Log Operational Expense');
+  const idInput = document.getElementById('expense-id');
+  if (idInput) idInput.value = '';
+  const dateInput = document.getElementById('expense-date');
+  if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+  openModal('expense-modal');
+};
+
+window.openEditExpenseModal = (expId) => {
+  const exp = (state.expenses || []).find(e => e.id === expId);
+  if (!exp) return;
+  setText('expense-modal-title', '✏️ Edit Operational Expense');
+  const idInput = document.getElementById('expense-id');
+  if (idInput) idInput.value = exp.id;
+  const dateInput = document.getElementById('expense-date');
+  if (dateInput) dateInput.value = exp.date;
+  const catInput = document.getElementById('expense-category');
+  if (catInput) catInput.value = exp.category;
+  const amtInput = document.getElementById('expense-amount');
+  if (amtInput) amtInput.value = exp.amount;
+  const modeInput = document.getElementById('expense-payment-mode');
+  if (modeInput) modeInput.value = exp.paymentMode || 'UPI';
+  const notesInput = document.getElementById('expense-notes');
+  if (notesInput) notesInput.value = exp.notes || '';
+  openModal('expense-modal');
+};
+
+async function handleSaveExpense(e) {
+  e.preventDefault();
+  const id = document.getElementById('expense-id')?.value;
+  const date = document.getElementById('expense-date')?.value;
+  const category = document.getElementById('expense-category')?.value;
+  const amount = parseFloat(document.getElementById('expense-amount')?.value) || 0;
+  const paymentMode = document.getElementById('expense-payment-mode')?.value || 'UPI';
+  const notes = document.getElementById('expense-notes')?.value || '';
+
+  if (!date || !category || amount <= 0) {
+    showToast('Please enter valid date, category and amount', 'danger');
+    return;
+  }
+
+  const expense = {
+    id: id || generateId('exp'),
+    date,
+    category,
+    amount,
+    paymentMode,
+    notes,
+    createdAt: id ? undefined : new Date().toISOString()
+  };
+
+  await saveItem('expenses', expense);
+  state.expenses = await getAll('expenses');
+  state.expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+  closeModal('expense-modal');
+  renderExpenses();
+  renderDashboardStats();
+  renderMonthlyReport();
+  showToast(id ? 'Expense updated!' : 'Expense logged!');
+}
+
+window.confirmDeleteExpense = (expId) => {
+  state.pendingDeleteAction = async () => {
+    await deleteItem('expenses', expId);
+    state.expenses = await getAll('expenses');
+    renderExpenses();
+    renderDashboardStats();
+    renderMonthlyReport();
+    showToast('Expense record deleted');
+  };
+  const msg = document.getElementById('delete-modal-msg');
+  if (msg) msg.textContent = 'Are you sure you want to delete this expense entry?';
+  openModal('delete-confirm-modal');
+};
+
+/* ==========================================
+ * BACKUP IMPORT & EXPORT HANDLERS
+ * ========================================== */
+window.triggerImportData = () => {
+  const input = document.getElementById('global-import-file-input') || document.getElementById('import-backup-file');
+  if (input) input.click();
+};
+
+window.triggerExportData = async () => {
+  try {
+    const jsonStr = await exportBackupJSON();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const fileName = `SigmaLures_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    downloadBlob(blob, fileName);
+    showToast('📤 Backup exported successfully!');
+  } catch (err) {
+    console.error('Backup export failed:', err);
+    showToast('Failed to export backup', 'danger');
+  }
+};
+
+window.handleImportFileSelect = async (event) => {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  try {
+    showToast('Importing backup data...');
+    const text = await file.text();
+    await importBackupJSON(text);
+    await loadAllData();
+    renderAllViews();
+    showToast('📥 Backup imported successfully! All records present.');
+  } catch (err) {
+    console.error('Import error:', err);
+    showToast(`Import failed: ${err.message || 'Invalid backup file'}`, 'danger');
+  } finally {
+    event.target.value = '';
+  }
+};
+
+/* ==========================================
+ * MONTHLY BUDGET & CAPITAL PLANNER HANDLERS
+ * ========================================== */
+window.renderBudget = () => {
+  const container = document.getElementById('budget-list-container');
+  if (!container) return;
+
+  const monthSelect = document.getElementById('budget-month-select');
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  if (monthSelect && !monthSelect.value) {
+    monthSelect.value = currentMonthStr;
+  }
+
+  const monthStr = monthSelect?.value || currentMonthStr;
+
+  const capSetting = (state.settings || []).find(s => s.key === `budget_capital_${monthStr}`);
+  const capitalVal = capSetting ? parseFloat(capSetting.value) || 0 : 0;
+
+  const capInput = document.getElementById('budget-capital-input');
+  if (capInput && document.activeElement !== capInput) {
+    capInput.value = capitalVal > 0 ? capitalVal : '';
+  }
+
+  const monthBudgets = (state.budgets || []).filter(b => b.month === monthStr || (b.createdAt && b.createdAt.startsWith(monthStr)));
+
+  const totalAllocated = monthBudgets.reduce((acc, b) => acc + (parseFloat(b.amount) || 0), 0);
+  const remainingCapital = Math.max(0, capitalVal - totalAllocated);
+  const completedCount = monthBudgets.filter(b => b.status === 'Completed').length;
+
+  setText('bdg-stat-capital', `₹${Math.round(capitalVal).toLocaleString('en-IN')}`);
+  setText('bdg-stat-allocated', `₹${Math.round(totalAllocated).toLocaleString('en-IN')}`);
+  setText('bdg-stat-remaining', `₹${Math.round(remainingCapital).toLocaleString('en-IN')}`);
+  setText('bdg-stat-items-count', monthBudgets.length);
+  setText('bdg-stat-completed', `${completedCount} / ${monthBudgets.length}`);
+
+  if (monthBudgets.length === 0) {
+    container.innerHTML = `<p style="color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 16px;">No budget allocation items planned for ${monthStr}.</p>`;
+    return;
+  }
+
+  container.innerHTML = monthBudgets.map(b => {
+    const isDone = b.status === 'Completed';
+    const statusBadge = isDone
+      ? `<span class="badge badge-budget-completed">✅ Completed</span>`
+      : `<span class="badge badge-budget-pending">⏳ Pending</span>`;
+
+    return `
+      <div class="list-item ${isDone ? 'budget-item-completed' : ''}">
+        <div class="list-item-header">
+          <span class="list-item-title">${escapeHTML(b.name)} <span style="font-size:0.75rem; color:var(--text-muted);">(${escapeHTML(b.category || 'General')})</span></span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${statusBadge}
+            <span class="stat-value accent" style="font-size:1rem;">₹${Math.round(b.amount).toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+        <div class="list-item-sub">
+          Target Month: <strong>${b.month || monthStr}</strong> ${b.notes ? `• ${escapeHTML(b.notes)}` : ''}
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px;">
+          <button class="btn ${isDone ? 'btn-secondary' : 'btn-primary'} btn-sm" onclick="window.toggleBudgetCompleted('${b.id}')">
+            ${isDone ? '↩ Mark Pending' : '✓ Mark Purchased'}
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="window.openEditBudgetModal('${b.id}')">✏️ Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="window.confirmDeleteBudget('${b.id}')">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+};
+
+window.saveBudgetCapital = async () => {
+  const monthSelect = document.getElementById('budget-month-select');
+  const monthStr = monthSelect?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  const capitalVal = parseFloat(document.getElementById('budget-capital-input')?.value) || 0;
+
+  const settingObj = {
+    key: `budget_capital_${monthStr}`,
+    value: capitalVal,
+    updatedAt: new Date().toISOString()
+  };
+
+  await saveItem('settings', settingObj);
+  state.settings = await getAll('settings');
+  renderBudget();
+  renderMonthlyReport();
+  showToast(`Starting capital of ₹${Math.round(capitalVal).toLocaleString('en-IN')} saved for ${monthStr}`);
+};
+
+window.openAddBudgetModal = () => {
+  const form = document.getElementById('budget-form');
+  if (form) form.reset();
+  setText('budget-modal-title', '🎯 Add Budget Allocation Item');
+  const idInput = document.getElementById('budget-id');
+  if (idInput) idInput.value = '';
+  openModal('budget-modal');
+};
+
+window.openEditBudgetModal = (budgetId) => {
+  const item = (state.budgets || []).find(b => b.id === budgetId);
+  if (!item) return;
+  setText('budget-modal-title', '✏️ Edit Budget Allocation Item');
+  const idInput = document.getElementById('budget-id');
+  if (idInput) idInput.value = item.id;
+  const nameInput = document.getElementById('budget-name');
+  if (nameInput) nameInput.value = item.name;
+  const amtInput = document.getElementById('budget-amount');
+  if (amtInput) amtInput.value = item.amount;
+  const statusInput = document.getElementById('budget-status');
+  if (statusInput) statusInput.value = item.status || 'Pending';
+  const catInput = document.getElementById('budget-category');
+  if (catInput) catInput.value = item.category || 'General';
+  const notesInput = document.getElementById('budget-notes');
+  if (notesInput) notesInput.value = item.notes || '';
+  openModal('budget-modal');
+};
+
+async function handleSaveBudgetItem(e) {
+  e.preventDefault();
+  const id = document.getElementById('budget-id')?.value;
+  const name = document.getElementById('budget-name')?.value;
+  const amount = parseFloat(document.getElementById('budget-amount')?.value) || 0;
+  const status = document.getElementById('budget-status')?.value || 'Pending';
+  const category = document.getElementById('budget-category')?.value || 'General';
+  const notes = document.getElementById('budget-notes')?.value || '';
+
+  const monthSelect = document.getElementById('budget-month-select');
+  const monthStr = monthSelect?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+  if (!name || amount <= 0) {
+    showToast('Please enter a valid item name and allocated amount', 'danger');
+    return;
+  }
+
+  const budgetItem = {
+    id: id || generateId('bdg'),
+    month: monthStr,
+    name,
+    amount,
+    status,
+    category,
+    notes,
+    createdAt: id ? undefined : new Date().toISOString()
+  };
+
+  await saveItem('budgets', budgetItem);
+  state.budgets = await getAll('budgets');
+  closeModal('budget-modal');
+  renderBudget();
+  renderMonthlyReport();
+  showToast(id ? 'Budget allocation updated!' : 'Budget item added!');
+}
+
+window.toggleBudgetCompleted = async (budgetId) => {
+  const item = (state.budgets || []).find(b => b.id === budgetId);
+  if (!item) return;
+
+  item.status = item.status === 'Completed' ? 'Pending' : 'Completed';
+  await saveItem('budgets', item);
+  state.budgets = await getAll('budgets');
+  renderBudget();
+  renderMonthlyReport();
+  showToast(item.status === 'Completed' ? `Marked "${item.name}" as Purchased!` : `Marked "${item.name}" as Pending`);
+};
+
+window.confirmDeleteBudget = (budgetId) => {
+  state.pendingDeleteAction = async () => {
+    await deleteItem('budgets', budgetId);
+    state.budgets = await getAll('budgets');
+    renderBudget();
+    renderMonthlyReport();
+    showToast('Budget allocation deleted');
+  };
+  const msg = document.getElementById('delete-modal-msg');
+  if (msg) msg.textContent = 'Are you sure you want to delete this budget allocation item?';
+  openModal('delete-confirm-modal');
+};
 
 // Global Window Bindings for Inline HTML Callbacks & Navigation
 window.switchView = switchView;
