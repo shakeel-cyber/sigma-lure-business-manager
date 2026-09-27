@@ -1858,6 +1858,8 @@ function setupEventListeners() {
     if (state.currentInvoiceBlob) {
       downloadBlob(state.currentInvoiceBlob, state.currentInvoiceFileName || 'Invoice.png');
     }
+  });
+
   document.getElementById('edit-sale-form')?.addEventListener('submit', handleSaveEditedSale);
   document.getElementById('expense-form')?.addEventListener('submit', handleSaveExpense);
   document.getElementById('budget-form')?.addEventListener('submit', handleSaveBudgetItem);
