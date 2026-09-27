@@ -3092,18 +3092,31 @@ function renderMonthlyReport() {
   const monthStr = monthInput.value || currentMonthStr;
   monthInput.value = monthStr;
 
-  const monthSales = state.sales.filter(s => s.date && s.date.startsWith(monthStr));
-  const monthPurchases = state.purchases.filter(p => p.date && p.date.startsWith(monthStr));
+  const matchesMonth = (dateStr, targetMonth) => {
+    if (!dateStr || !targetMonth) return false;
+    return String(dateStr).trim().startsWith(targetMonth.trim());
+  };
+
+  const monthSales = (state.sales || []).filter(s => matchesMonth(s.date, monthStr));
+  const monthPurchases = (state.purchases || []).filter(p => matchesMonth(p.date, monthStr));
+  const monthExpenses = (state.expenses || []).filter(e => matchesMonth(e.date, monthStr));
+
+  const capSetting = (state.settings || []).find(s => s.key === `budget_capital_${monthStr}`);
+  const capitalVal = capSetting ? parseFloat(capSetting.value) || 0 : 0;
+  const monthBudgets = (state.budgets || []).filter(b => b.month === monthStr || matchesMonth(b.createdAt, monthStr));
 
   const totalSales = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
   const totalPurchases = monthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
+  const totalExpenses = monthExpenses.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+  const totalAllocated = monthBudgets.reduce((acc, b) => acc + (parseFloat(b.amount) || 0), 0);
+  const remainingCapital = Math.max(0, capitalVal - totalAllocated);
+
   const totalReceived = monthSales.reduce((acc, s) => acc + (s.paid || 0), 0);
   const totalPending = monthSales.reduce((acc, s) => acc + (s.pending || 0), 0);
   const totalDiscounts = monthSales.reduce((acc, s) => acc + (s.discount || 0), 0);
-  const totalShipping = monthSales.reduce((acc, s) => acc + (s.shipping || 0), 0);
   const totalFreeJigs = monthSales.reduce((acc, s) => acc + (s.freeQty || 0), 0);
 
-  let monthProfit = 0;
+  let grossProfit = 0;
   const modelStats = {};
   LURE_PROFIT_CONFIG.forEach(cfg => {
     ['wholesale', 'retail'].forEach(type => {
@@ -3140,10 +3153,12 @@ function renderMonthlyReport() {
 
         modelStats[key].totalSold += qty;
         modelStats[key].totalProfit += qty * profitPerLure;
-        monthProfit += qty * profitPerLure;
+        grossProfit += qty * profitPerLure;
       }
     });
   });
+
+  const actualNetProfit = grossProfit - totalExpenses;
 
   const keysToRender = [];
   LURE_PROFIT_CONFIG.forEach(cfg => {
@@ -3173,7 +3188,7 @@ function renderMonthlyReport() {
   const salesRowsHtml = monthSales.length === 0
     ? `<tr><td colspan="7" style="text-align:center; color: var(--text-muted); padding: 12px;">No sales logged for ${monthStr}</td></tr>`
     : monthSales.map(s => {
-        const itemsText = s.items.map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ');
+        const itemsText = (s.items || []).map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ');
         const typeBadge = (s.customerType || 'wholesale').toLowerCase() === 'wholesale'
           ? `<span class="badge badge-info" style="font-size:0.68rem; padding: 2px 6px;">WHOLESALE</span>`
           : `<span class="badge badge-warning" style="font-size:0.68rem; padding: 2px 6px;">RETAIL</span>`;
@@ -3225,33 +3240,33 @@ function renderMonthlyReport() {
       `).join('');
 
   container.innerHTML = `
-    <div class="grid-3" style="margin-bottom: 12px;">
+    <div class="grid-3" style="margin-bottom: 10px;">
       <div class="stat-card">
         <span class="stat-label">Total Sales</span>
         <span class="stat-value accent">₹${Math.round(totalSales).toLocaleString('en-IN')}</span>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Total Purchases</span>
+        <span class="stat-label">Material Purchases</span>
         <span class="stat-value warning">₹${Math.round(totalPurchases).toLocaleString('en-IN')}</span>
       </div>
-      <div class="stat-card" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3);">
-        <span class="stat-label" style="color: var(--success); font-weight: 700;">Actual Profit</span>
-        <span class="stat-value success">₹${Math.round(monthProfit).toLocaleString('en-IN')}</span>
+      <div class="stat-card" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25);">
+        <span class="stat-label" style="color: var(--danger);">Operational Expenses</span>
+        <span class="stat-value danger">₹${Math.round(totalExpenses).toLocaleString('en-IN')}</span>
       </div>
     </div>
 
-    <div class="grid-3" style="margin-bottom: 12px;">
-      <div class="stat-card">
-        <span class="stat-label">Received</span>
+    <div class="grid-3" style="margin-bottom: 10px;">
+      <div class="stat-card" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3);">
+        <span class="stat-label" style="color: var(--success); font-weight: 700;">Actual Net Profit</span>
+        <span class="stat-value success">₹${Math.round(actualNetProfit).toLocaleString('en-IN')}</span>
+      </div>
+      <div class="stat-card" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+        <span class="stat-label" style="color: var(--success);">Amount Received</span>
         <span class="stat-value success">₹${Math.round(totalReceived).toLocaleString('en-IN')}</span>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">Pending</span>
+      <div class="stat-card" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25);">
+        <span class="stat-label" style="color: var(--danger);">Pending Dues</span>
         <span class="stat-value danger">₹${Math.round(totalPending).toLocaleString('en-IN')}</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">Orders</span>
-        <span class="stat-value">${monthSales.length}</span>
       </div>
     </div>
 
@@ -3266,7 +3281,7 @@ function renderMonthlyReport() {
       </div>
       <div class="stat-card">
         <span class="stat-label">Free Jigs</span>
-        <span class="stat-value" style="color:var(--accent);">${totalFreeJigs}</span>
+        <span class="stat-value" style="color:var(--accent);">${totalFreeJigs} pcs</span>
       </div>
     </div>
 
