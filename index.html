@@ -195,14 +195,6 @@
           </div>
         </button>
 
-        <button class="dash-btn" data-target="backup-view" onclick="window.switchView('backup-view')">
-          <div class="dash-btn-icon">💾</div>
-          <div>
-            <div class="dash-btn-title">Backup & Settings</div>
-            <div class="dash-btn-subtitle">Export data & restore</div>
-          </div>
-        </button>
-
         <button class="dash-btn" data-target="new-orders-view" id="dash-new-order-btn" onclick="window.switchView('new-orders-view')">
           <div class="dash-btn-icon">📋</div>
           <div>
@@ -1350,14 +1342,15 @@
 
         <div class="form-group">
           <label class="form-label">Category</label>
-          <select id="budget-category" class="form-select">
-            <option value="Raw Materials">🎣 Raw Materials & Stock</option>
-            <option value="Tools & Molds">🛠️ Tools, Molds & Hardware</option>
-            <option value="Packaging">📦 Packaging & Mailers</option>
-            <option value="Rent & Utilities">🏢 Rent & Utilities</option>
-            <option value="Emergency Reserve">🛡️ Buffer / Emergency Reserve</option>
-            <option value="General">🌀 General Allocation</option>
-          </select>
+          <input type="text" id="budget-category" class="form-input" list="budget-category-list" placeholder="Type category (e.g. Raw Materials, Tools, Rent, Packaging)..." autocomplete="off">
+          <datalist id="budget-category-list">
+            <option value="Raw Materials & Stock"></option>
+            <option value="Tools, Molds & Hardware"></option>
+            <option value="Packaging & Mailers"></option>
+            <option value="Rent & Utilities"></option>
+            <option value="Buffer / Emergency Reserve"></option>
+            <option value="General Allocation"></option>
+          </datalist>
         </div>
 
         <div class="form-group">
