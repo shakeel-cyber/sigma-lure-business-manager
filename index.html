@@ -75,8 +75,6 @@
             <span id="dash-month-label" style="font-size: 0.75rem; color: var(--accent);"></span>
           </div>
           <div class="btn-action-group">
-            <button class="btn btn-sm btn-import" onclick="window.triggerImportData()" title="Import JSON Backup file">📥 Import Data</button>
-            <button class="btn btn-sm btn-export" onclick="window.triggerExportData()" title="Backup data to JSON file">📤 Backup</button>
             <button class="btn btn-secondary btn-sm" onclick="window.switchView('reports-view')" style="font-size:0.75rem; padding: 4px 10px;">📊 Reports</button>
           </div>
         </div>
@@ -94,21 +92,23 @@
             <span class="stat-value danger" id="dash-month-expenses">₹0</span>
           </div>
         </div>
-        <div class="grid-3">
+        <div class="grid-3" style="margin-bottom: 10px;">
           <div class="stat-card" style="background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3);">
             <span class="stat-label" style="color: var(--success); font-weight: 700;">Actual Net Profit</span>
             <span class="stat-value success" id="dash-month-profit">₹0</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-label">Received / Pending</span>
-            <div style="font-size: 0.85rem; margin-top: 4px;">
-              <span class="success" id="dash-month-received">₹0</span> / <span class="danger" id="dash-month-pending">₹0</span>
-            </div>
+          <div class="stat-card" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+            <span class="stat-label" style="color: var(--success);">Amount Received</span>
+            <span class="stat-value success" id="dash-month-received">₹0</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-label">Lures Sold</span>
-            <span class="stat-value" id="dash-month-lures-sold" style="color:var(--accent);">0 pcs</span>
+          <div class="stat-card" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25);">
+            <span class="stat-label" style="color: var(--danger);">Pending Dues</span>
+            <span class="stat-value danger" id="dash-month-pending">₹0</span>
           </div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Lures Sold</span>
+          <span class="stat-value" id="dash-month-lures-sold" style="color:var(--accent);">0 pcs</span>
         </div>
       </div>
 
@@ -1279,16 +1279,17 @@
 
         <div class="form-group">
           <label class="form-label">Category *</label>
-          <select id="expense-category" class="form-select" required>
-            <option value="Packaging">📦 Packaging Materials</option>
-            <option value="Fuel / Transport">🚚 Fuel & Courier / Transport</option>
-            <option value="Rent">🏢 Shop / Factory Rent</option>
-            <option value="Electricity / Utilities">⚡ Electricity & Utilities</option>
-            <option value="Tools & Equipment">🛠️ Tools, Molds & Equipment</option>
-            <option value="Marketing / Ads">📢 Marketing & Ads</option>
-            <option value="Salary & Wages">👥 Salary & Helper Wages</option>
-            <option value="Miscellaneous">🌀 Miscellaneous</option>
-          </select>
+          <input type="text" id="expense-category" class="form-input" list="expense-category-list" placeholder="Type category (e.g. Fuel, Rent, Packaging)..." required autocomplete="off">
+          <datalist id="expense-category-list">
+            <option value="Packaging Materials"></option>
+            <option value="Fuel & Courier / Transport"></option>
+            <option value="Shop / Factory Rent"></option>
+            <option value="Electricity & Utilities"></option>
+            <option value="Tools, Molds & Equipment"></option>
+            <option value="Marketing & Ads"></option>
+            <option value="Salary & Helper Wages"></option>
+            <option value="Miscellaneous"></option>
+          </datalist>
         </div>
 
         <div class="grid-2">

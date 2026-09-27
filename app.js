@@ -1822,8 +1822,11 @@ function setupEventListeners() {
 
   document.getElementById('purchases-month-filter')?.addEventListener('change', renderPurchasesList);
   document.getElementById('report-month-select')?.addEventListener('change', renderMonthlyReport);
+  document.getElementById('report-month-select')?.addEventListener('input', renderMonthlyReport);
   document.getElementById('comp-month-a')?.addEventListener('change', renderMonthComparison);
+  document.getElementById('comp-month-a')?.addEventListener('input', renderMonthComparison);
   document.getElementById('comp-month-b')?.addEventListener('change', renderMonthComparison);
+  document.getElementById('comp-month-b')?.addEventListener('input', renderMonthComparison);
 
   // Invoice Image Handlers
   document.getElementById('share-invoice-img-btn')?.addEventListener('click', () => window.shareInvoiceAsImage('share'));
@@ -1871,11 +1874,36 @@ function setupEventListeners() {
 }
 
 function setupTouchSwipeNavigation() {
-  // Swipe navigation disabled per user preference. Click bottom nav tabs / top buttons to navigate.
   const brandHomeBtn = document.getElementById('brand-home-btn');
   if (brandHomeBtn) {
     brandHomeBtn.addEventListener('click', () => switchView('dashboard-view'));
   }
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now();
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    const deltaTime = Date.now() - touchStartTime;
+
+    // Detect swiping right from left edge (touchStartX <= 60, horizontal swipe right >= 60px)
+    if (touchStartX <= 60 && deltaX > 60 && Math.abs(deltaY) < 60 && deltaTime < 600) {
+      handleBackNavigation(true);
+    }
+  }, { passive: true });
 }
 
 function setupDefaultDates() {
@@ -3336,13 +3364,18 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
   const monthInput = document.getElementById('report-month-select');
   const monthStr = targetMonthStr || monthInput?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
   
-  const monthSales = state.sales.filter(s => s.date && s.date.startsWith(monthStr));
-  const monthPurchases = state.purchases.filter(p => p.date && p.date.startsWith(monthStr));
-  const monthExpenses = (state.expenses || []).filter(e => e.date && e.date.startsWith(monthStr));
+  const matchesMonth = (dateStr, targetMonth) => {
+    if (!dateStr || !targetMonth) return false;
+    return String(dateStr).trim().startsWith(targetMonth.trim());
+  };
+
+  const monthSales = (state.sales || []).filter(s => matchesMonth(s.date, monthStr));
+  const monthPurchases = (state.purchases || []).filter(p => matchesMonth(p.date, monthStr));
+  const monthExpenses = (state.expenses || []).filter(e => matchesMonth(e.date, monthStr));
 
   const capSetting = (state.settings || []).find(s => s.key === `budget_capital_${monthStr}`);
   const capitalVal = capSetting ? parseFloat(capSetting.value) || 0 : 0;
-  const monthBudgets = (state.budgets || []).filter(b => b.month === monthStr || (b.createdAt && b.createdAt.startsWith(monthStr)));
+  const monthBudgets = (state.budgets || []).filter(b => b.month === monthStr || matchesMonth(b.createdAt, monthStr));
 
   const totalSales = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
   const totalPurchases = monthPurchases.reduce((acc, p) => acc + (p.total || 0), 0);
@@ -3397,7 +3430,7 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
   const salesRows = monthSales.length === 0
     ? `<tr><td colspan="7" style="text-align:center;">No sales logged for this month</td></tr>`
     : monthSales.map(s => {
-        const itemsText = s.items.map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ');
+        const itemsText = (s.items || []).map(i => `${i.product} ${i.weight} × ${i.qty}`).join(', ');
         return `
           <tr>
             <td>${s.date}</td>
@@ -3451,7 +3484,7 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
   const printArea = document.getElementById('report-print-area');
   if (!printArea) return;
 
-  printArea.innerHTML = `
+  const htmlBody = `
     <div style="margin-bottom: 20px; border-bottom: 2px solid #ff6b00; padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
       <div>
         <h1 style="font-size: 1.6rem; margin: 0; color: #111;">SIGMA LURES</h1>
@@ -3569,7 +3602,38 @@ window.downloadMonthlyReportPDF = (targetMonthStr) => {
     </table>
   `;
 
-  window.print();
+  printArea.innerHTML = htmlBody;
+
+  const docHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sigma Lures — Monthly Report (${monthStr})</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #111; background: #fff; }
+    h1 { font-size: 1.6rem; margin: 0; color: #111; }
+    h2 { font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
+    .print-table th, .print-table td { border: 1px solid #ccc; padding: 8px 10px; font-size: 0.85rem; text-align: left; }
+    .print-table th { background: #f1f5f9; color: #000; font-weight: bold; }
+  </style>
+</head>
+<body>
+  ${htmlBody}
+</body>
+</html>`;
+
+  try {
+    const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
+    downloadBlob(blob, `Sigma_Lures_Report_${monthStr}.html`);
+    showToast(`Report downloaded for ${monthStr}!`);
+  } catch (err) {
+    console.warn('Report blob download warning:', err);
+  }
+
+  try {
+    window.print();
+  } catch (e) {}
 };
 
 function renderMonthComparison() {
@@ -3578,48 +3642,88 @@ function renderMonthComparison() {
   const container = document.getElementById('comparison-table-container');
   if (!monthA || !monthB || !container) return;
 
-  const salesA = state.sales.filter(s => s.date && s.date.startsWith(monthA));
-  const salesB = state.sales.filter(s => s.date && s.date.startsWith(monthB));
-  const purchA = state.purchases.filter(p => p.date && p.date.startsWith(monthA));
-  const purchB = state.purchases.filter(p => p.date && p.date.startsWith(monthB));
+  const matchesMonth = (dateStr, targetMonth) => {
+    if (!dateStr || !targetMonth) return false;
+    return String(dateStr).trim().startsWith(targetMonth.trim());
+  };
+
+  const salesA = (state.sales || []).filter(s => matchesMonth(s.date, monthA));
+  const salesB = (state.sales || []).filter(s => matchesMonth(s.date, monthB));
+  const purchA = (state.purchases || []).filter(p => matchesMonth(p.date, monthA));
+  const purchB = (state.purchases || []).filter(p => matchesMonth(p.date, monthB));
+  const expA = (state.expenses || []).filter(e => matchesMonth(e.date, monthA));
+  const expB = (state.expenses || []).filter(e => matchesMonth(e.date, monthB));
 
   let luresSoldA = 0;
+  let grossProfitA = 0;
   salesA.forEach(s => {
     if (s.items && Array.isArray(s.items)) {
+      const saleType = (s.customerType || 'wholesale').toLowerCase();
       s.items.forEach(i => {
-        luresSoldA += (parseInt(i.qty || i.quantity || 0) || 0);
+        const q = parseInt(i.qty || i.quantity || 0) || 0;
+        luresSoldA += q;
+        const prodName = (i.product || '').trim();
+        const weight = (i.weight || '').trim();
+        const cfg = LURE_PROFIT_CONFIG.find(c => c.model.toLowerCase() === prodName.toLowerCase() && c.weight.toLowerCase() === weight.toLowerCase());
+        if (cfg) {
+          const sellPrice = (i.sellingPrice !== undefined && i.sellingPrice !== null) ? i.sellingPrice : (saleType === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice);
+          grossProfitA += q * (sellPrice - cfg.productionCost);
+        }
       });
     }
   });
 
   let luresSoldB = 0;
+  let grossProfitB = 0;
   salesB.forEach(s => {
     if (s.items && Array.isArray(s.items)) {
+      const saleType = (s.customerType || 'wholesale').toLowerCase();
       s.items.forEach(i => {
-        luresSoldB += (parseInt(i.qty || i.quantity || 0) || 0);
+        const q = parseInt(i.qty || i.quantity || 0) || 0;
+        luresSoldB += q;
+        const prodName = (i.product || '').trim();
+        const weight = (i.weight || '').trim();
+        const cfg = LURE_PROFIT_CONFIG.find(c => c.model.toLowerCase() === prodName.toLowerCase() && c.weight.toLowerCase() === weight.toLowerCase());
+        if (cfg) {
+          const sellPrice = (i.sellingPrice !== undefined && i.sellingPrice !== null) ? i.sellingPrice : (saleType === 'wholesale' ? cfg.wholesalePrice : cfg.retailPrice);
+          grossProfitB += q * (sellPrice - cfg.productionCost);
+        }
       });
     }
   });
 
   const totalSalesA = salesA.reduce((acc, s) => acc + (s.total || 0), 0);
   const totalSalesB = salesB.reduce((acc, s) => acc + (s.total || 0), 0);
+
   const totalPurchA = purchA.reduce((acc, p) => acc + (p.total || 0), 0);
   const totalPurchB = purchB.reduce((acc, p) => acc + (p.total || 0), 0);
+
+  const totalExpA = expA.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+  const totalExpB = expB.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+
+  const netProfitA = grossProfitA - totalExpA;
+  const netProfitB = grossProfitB - totalExpB;
+
   const totalRecA = salesA.reduce((acc, s) => acc + (s.paid || 0), 0);
   const totalRecB = salesB.reduce((acc, s) => acc + (s.paid || 0), 0);
+
   const totalPendA = salesA.reduce((acc, s) => acc + (s.pending || 0), 0);
   const totalPendB = salesB.reduce((acc, s) => acc + (s.pending || 0), 0);
 
   const diffLures = luresSoldA - luresSoldB;
   const diffSales = totalSalesA - totalSalesB;
   const diffPurch = totalPurchA - totalPurchB;
+  const diffExp = totalExpA - totalExpB;
+  const diffProfit = netProfitA - netProfitB;
   const diffRec = totalRecA - totalRecB;
   const diffPend = totalPendA - totalPendB;
 
-  const formatDiff = (val) => {
+  const formatDiff = (val, invertColors = false) => {
     const prefix = val >= 0 ? '+' : '';
-    const color = val >= 0 ? 'var(--success)' : 'var(--danger)';
-    return `<span style="color:${color}; font-weight:bold;">${prefix}₹${val.toLocaleString('en-IN')}</span>`;
+    let isGood = val >= 0;
+    if (invertColors) isGood = val <= 0;
+    const color = isGood ? 'var(--success)' : 'var(--danger)';
+    return `<span style="color:${color}; font-weight:bold;">${prefix}₹${Math.round(val).toLocaleString('en-IN')}</span>`;
   };
 
   const formatLuresDiff = (val) => {
@@ -3648,27 +3752,39 @@ function renderMonthComparison() {
           </tr>
           <tr>
             <td>Total Sales Revenue</td>
-            <td>₹${totalSalesA.toLocaleString('en-IN')}</td>
-            <td>₹${totalSalesB.toLocaleString('en-IN')}</td>
+            <td>₹${Math.round(totalSalesA).toLocaleString('en-IN')}</td>
+            <td>₹${Math.round(totalSalesB).toLocaleString('en-IN')}</td>
             <td>${formatDiff(diffSales)}</td>
           </tr>
           <tr>
             <td>Total Purchases</td>
-            <td>₹${totalPurchA.toLocaleString('en-IN')}</td>
-            <td>₹${totalPurchB.toLocaleString('en-IN')}</td>
-            <td>${formatDiff(diffPurch)}</td>
+            <td>₹${Math.round(totalPurchA).toLocaleString('en-IN')}</td>
+            <td>₹${Math.round(totalPurchB).toLocaleString('en-IN')}</td>
+            <td>${formatDiff(diffPurch, true)}</td>
+          </tr>
+          <tr>
+            <td>Operational Expenses</td>
+            <td style="color:var(--danger);">₹${Math.round(totalExpA).toLocaleString('en-IN')}</td>
+            <td style="color:var(--danger);">₹${Math.round(totalExpB).toLocaleString('en-IN')}</td>
+            <td>${formatDiff(diffExp, true)}</td>
+          </tr>
+          <tr style="background: rgba(16, 185, 129, 0.08);">
+            <td><strong>Actual Net Profit</strong></td>
+            <td><strong style="color:var(--success);">₹${Math.round(netProfitA).toLocaleString('en-IN')}</strong></td>
+            <td><strong style="color:var(--success);">₹${Math.round(netProfitB).toLocaleString('en-IN')}</strong></td>
+            <td>${formatDiff(diffProfit)}</td>
           </tr>
           <tr>
             <td>Amount Received</td>
-            <td>₹${totalRecA.toLocaleString('en-IN')}</td>
-            <td>₹${totalRecB.toLocaleString('en-IN')}</td>
+            <td>₹${Math.round(totalRecA).toLocaleString('en-IN')}</td>
+            <td>₹${Math.round(totalRecB).toLocaleString('en-IN')}</td>
             <td>${formatDiff(diffRec)}</td>
           </tr>
           <tr>
             <td>Pending Payments</td>
-            <td>₹${totalPendA.toLocaleString('en-IN')}</td>
-            <td>₹${totalPendB.toLocaleString('en-IN')}</td>
-            <td>${formatDiff(diffPend)}</td>
+            <td>₹${Math.round(totalPendA).toLocaleString('en-IN')}</td>
+            <td>₹${Math.round(totalPendB).toLocaleString('en-IN')}</td>
+            <td>${formatDiff(diffPend, true)}</td>
           </tr>
         </tbody>
       </table>
