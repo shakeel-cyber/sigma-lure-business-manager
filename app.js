@@ -7,10 +7,8 @@
 
 // ==========================================
 // 1. OFFLINE INDEXEDDB & STORAGE ENGINE
-// ==========================================
-
-const DB_NAME = 'SigmaLuresDB';
-const DB_VERSION = 1;
+// ==========================================const DB_NAME = 'SigmaLuresDB';
+const DB_VERSION = 4;
 
 const DEFAULT_CATALOG = [
   { id: 'cat_1', name: 'Brine', weight: '8g', wholesalePrice: 120, retailPrice: 170 },
@@ -38,11 +36,14 @@ window.switchView = function(viewId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 };
+
 const fallbackData = {
   shops: [],
   customers: [],
   sales: [],
   purchases: [],
+  expenses: [],
+  budgets: [],
   plannedPurchases: [],
   catalog: DEFAULT_CATALOG,
   newOrders: [],
@@ -58,6 +59,8 @@ function seedFallbackDemoData() {
       if (Array.isArray(parsed.customers)) parsed.customers = parsed.customers.filter(c => !c.id || !c.id.startsWith('cust_demo_'));
       if (Array.isArray(parsed.sales)) parsed.sales = parsed.sales.filter(s => !s.id || !s.id.startsWith('sale_demo_'));
       if (Array.isArray(parsed.purchases)) parsed.purchases = parsed.purchases.filter(p => !p.id || !p.id.startsWith('purch_demo_'));
+      if (Array.isArray(parsed.expenses)) parsed.expenses = parsed.expenses.filter(e => !e.id || !e.id.startsWith('exp_demo_'));
+      if (Array.isArray(parsed.budgets)) parsed.budgets = parsed.budgets.filter(b => !b.id || !b.id.startsWith('bdg_demo_'));
       Object.assign(fallbackData, parsed);
       return;
     }
@@ -67,8 +70,11 @@ function seedFallbackDemoData() {
   fallbackData.customers = [];
   fallbackData.sales = [];
   fallbackData.purchases = [];
+  fallbackData.expenses = [];
+  fallbackData.budgets = [];
   fallbackData.plannedPurchases = [];
   fallbackData.newOrders = [];
+  fallbackData.settings = [];
 
   persistFallbackData();
 }
@@ -81,6 +87,9 @@ function persistFallbackData() {
 
 function initDB() {
   return new Promise((resolve) => {
+    // Always initialize fallback memory from localStorage
+    seedFallbackDemoData();
+
     if (dbInstance || useFallbackStore) {
       return resolve(dbInstance || 'fallback');
     }
@@ -88,7 +97,6 @@ function initDB() {
     try {
       if (!window.indexedDB) {
         useFallbackStore = true;
-        seedFallbackDemoData();
         return resolve('fallback');
       }
 
@@ -124,6 +132,18 @@ function initDB() {
           purchStore.createIndex('date', 'date', { unique: false });
           purchStore.createIndex('product', 'product', { unique: false });
           purchStore.createIndex('supplier', 'supplier', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains('expenses')) {
+          const expStore = db.createObjectStore('expenses', { keyPath: 'id' });
+          expStore.createIndex('date', 'date', { unique: false });
+          expStore.createIndex('category', 'category', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains('budgets')) {
+          const budgetStore = db.createObjectStore('budgets', { keyPath: 'id' });
+          budgetStore.createIndex('month', 'month', { unique: false });
+          budgetStore.createIndex('status', 'status', { unique: false });
         }
 
         if (!db.objectStoreNames.contains('plannedPurchases')) {
@@ -180,13 +200,11 @@ function initDB() {
       request.onerror = (event) => {
         console.warn('IndexedDB open blocked/error, using fallback store:', event);
         useFallbackStore = true;
-        seedFallbackDemoData();
         resolve('fallback');
       };
     } catch (e) {
       console.warn('IndexedDB exception, using fallback store:', e);
       useFallbackStore = true;
-      seedFallbackDemoData();
       resolve('fallback');
     }
   });
@@ -207,7 +225,15 @@ function getAll(storeName) {
       try {
         const store = getStore(storeName, 'readonly');
         const request = store.getAll();
-        request.onsuccess = () => resolve(request.result || []);
+        request.onsuccess = () => {
+          const res = request.result || [];
+          if (res.length > 0) {
+            resolve(res);
+          } else {
+            const list = fallbackData[storeName] || [];
+            resolve(JSON.parse(JSON.stringify(list)));
+          }
+        };
         request.onerror = () => {
           const list = fallbackData[storeName] || [];
           resolve(JSON.parse(JSON.stringify(list)));
@@ -228,26 +254,34 @@ function getItem(storeName, id) {
     initDB().then(() => {
       if (useFallbackStore || !dbInstance) {
         const list = fallbackData[storeName] || [];
-        const found = list.find(item => item.id === id) || null;
+        const found = list.find(item => (item.id || item.key) === id) || null;
         return resolve(JSON.parse(JSON.stringify(found)));
       }
       try {
         const store = getStore(storeName, 'readonly');
         const request = store.get(id);
-        request.onsuccess = () => resolve(request.result || null);
+        request.onsuccess = () => {
+          if (request.result) {
+            resolve(request.result);
+          } else {
+            const list = fallbackData[storeName] || [];
+            const found = list.find(item => (item.id || item.key) === id) || null;
+            resolve(JSON.parse(JSON.stringify(found)));
+          }
+        };
         request.onerror = () => {
           const list = fallbackData[storeName] || [];
-          const found = list.find(item => item.id === id) || null;
+          const found = list.find(item => (item.id || item.key) === id) || null;
           resolve(JSON.parse(JSON.stringify(found)));
         };
       } catch (e) {
         const list = fallbackData[storeName] || [];
-        const found = list.find(item => item.id === id) || null;
+        const found = list.find(item => (item.id || item.key) === id) || null;
         resolve(JSON.parse(JSON.stringify(found)));
       }
     }).catch(() => {
       const list = fallbackData[storeName] || [];
-      const found = list.find(item => item.id === id) || null;
+      const found = list.find(item => (item.id || item.key) === id) || null;
       resolve(JSON.parse(JSON.stringify(found)));
     });
   });
@@ -255,53 +289,36 @@ function getItem(storeName, id) {
 
 function saveItem(storeName, item) {
   return new Promise((resolve) => {
-    initDB().then(() => {
-      if (useFallbackStore || !dbInstance) {
-        if (!fallbackData[storeName]) fallbackData[storeName] = [];
-        const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
-        if (idx >= 0) {
-          fallbackData[storeName][idx] = item;
-        } else {
-          fallbackData[storeName].push(item);
-        }
-        persistFallbackData();
-        return resolve(item);
-      }
-      try {
-        const store = getStore(storeName, 'readwrite');
-        const request = store.put(item);
-        request.onsuccess = () => resolve(item);
-        request.onerror = () => {
-          if (!fallbackData[storeName]) fallbackData[storeName] = [];
-          const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
-          if (idx >= 0) {
-            fallbackData[storeName][idx] = item;
-          } else {
-            fallbackData[storeName].push(item);
-          }
-          persistFallbackData();
-          resolve(item);
-        };
-      } catch (e) {
-        if (!fallbackData[storeName]) fallbackData[storeName] = [];
-        const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
-        if (idx >= 0) {
-          fallbackData[storeName][idx] = item;
-        } else {
-          fallbackData[storeName].push(item);
-        }
-        persistFallbackData();
-        resolve(item);
-      }
-    }).catch(() => {
-      if (!fallbackData[storeName]) fallbackData[storeName] = [];
-      const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
+    // Sync into fallbackData/localStorage for offline persistence redundancy
+    if (!fallbackData[storeName]) fallbackData[storeName] = [];
+    const itemId = item.id || item.key;
+    if (itemId) {
+      const idx = fallbackData[storeName].findIndex(i => (i.id || i.key) === itemId);
       if (idx >= 0) {
         fallbackData[storeName][idx] = item;
       } else {
         fallbackData[storeName].push(item);
       }
       persistFallbackData();
+    }
+
+    initDB().then(() => {
+      if (useFallbackStore || !dbInstance) {
+        return resolve(item);
+      }
+      try {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.put(item);
+        request.onsuccess = () => resolve(item);
+        request.onerror = (err) => {
+          console.warn(`IndexedDB put error for ${storeName}:`, err);
+          resolve(item);
+        };
+      } catch (e) {
+        console.warn(`IndexedDB store error for ${storeName}:`, e);
+        resolve(item);
+      }
+    }).catch(() => {
       resolve(item);
     });
   });
@@ -309,37 +326,25 @@ function saveItem(storeName, item) {
 
 function deleteItem(storeName, id) {
   return new Promise((resolve) => {
+    // Sync into fallbackData/localStorage for offline persistence redundancy
+    if (fallbackData[storeName]) {
+      fallbackData[storeName] = fallbackData[storeName].filter(i => (i.id || i.key) !== id);
+      persistFallbackData();
+    }
+
     initDB().then(() => {
       if (useFallbackStore || !dbInstance) {
-        if (fallbackData[storeName]) {
-          fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
-          persistFallbackData();
-        }
         return resolve(true);
       }
       try {
         const store = getStore(storeName, 'readwrite');
         const request = store.delete(id);
         request.onsuccess = () => resolve(true);
-        request.onerror = () => {
-          if (fallbackData[storeName]) {
-            fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
-            persistFallbackData();
-          }
-          resolve(true);
-        };
+        request.onerror = () => resolve(true);
       } catch (e) {
-        if (fallbackData[storeName]) {
-          fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
-          persistFallbackData();
-        }
         resolve(true);
       }
     }).catch(() => {
-      if (fallbackData[storeName]) {
-        fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
-        persistFallbackData();
-      }
       resolve(true);
     });
   });
@@ -359,6 +364,8 @@ async function exportBackupJSON() {
     customers: await getAll('customers'),
     sales: await getAll('sales'),
     purchases: await getAll('purchases'),
+    expenses: await getAll('expenses'),
+    budgets: await getAll('budgets'),
     plannedPurchases: await getAll('plannedPurchases'),
     catalog: await getAll('catalog'),
     newOrders: await getAll('newOrders'),
@@ -383,20 +390,22 @@ async function importBackupJSON(jsonContent) {
   const putMany = async (storeName, items) => {
     if (!Array.isArray(items)) return;
     for (const item of items) {
-      if (item && item.id) {
+      if (item && (item.id || item.key)) {
         await saveItem(storeName, item);
       }
     }
   };
 
-  await putMany('shops', parsed.shops);
-  await putMany('customers', parsed.customers);
-  await putMany('sales', parsed.sales);
-  await putMany('purchases', parsed.purchases);
-  await putMany('plannedPurchases', parsed.plannedPurchases);
-  await putMany('catalog', parsed.catalog);
-  await putMany('newOrders', parsed.newOrders);
-  await putMany('settings', parsed.settings);
+  if (parsed.shops) await putMany('shops', parsed.shops);
+  if (parsed.customers) await putMany('customers', parsed.customers);
+  if (parsed.sales) await putMany('sales', parsed.sales);
+  if (parsed.purchases) await putMany('purchases', parsed.purchases);
+  if (parsed.expenses) await putMany('expenses', parsed.expenses);
+  if (parsed.budgets) await putMany('budgets', parsed.budgets);
+  if (parsed.plannedPurchases) await putMany('plannedPurchases', parsed.plannedPurchases);
+  if (parsed.catalog) await putMany('catalog', parsed.catalog);
+  if (parsed.newOrders) await putMany('newOrders', parsed.newOrders);
+  if (parsed.settings) await putMany('settings', parsed.settings);
 
   return true;
 }
@@ -1508,9 +1517,11 @@ async function loadAllData() {
     state.sales = await getAll('sales');
     state.purchases = await getAll('purchases');
     state.expenses = await getAll('expenses');
+    state.budgets = await getAll('budgets');
     state.plannedPurchases = await getAll('plannedPurchases');
     state.catalog = await getAll('catalog');
     state.newOrders = await getAll('newOrders');
+    state.settings = await getAll('settings');
     state.sales.sort((a, b) => new Date(b.date) - new Date(a.date));
     state.expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
     state.newOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

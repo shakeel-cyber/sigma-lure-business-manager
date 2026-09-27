@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'SigmaLuresDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Default Preloaded Product Catalog with Wholesale & Retail Prices
 const DEFAULT_CATALOG = [
@@ -29,6 +29,7 @@ const fallbackData = {
   budgets: [],
   plannedPurchases: [],
   catalog: DEFAULT_CATALOG,
+  newOrders: [],
   settings: []
 };
 
@@ -55,6 +56,7 @@ function seedFallbackDemoData() {
   fallbackData.expenses = [];
   fallbackData.budgets = [];
   fallbackData.plannedPurchases = [];
+  fallbackData.newOrders = [];
   fallbackData.settings = [];
 
   persistFallbackData();
@@ -68,6 +70,8 @@ function persistFallbackData() {
 
 function initDB() {
   return new Promise((resolve) => {
+    seedFallbackDemoData();
+
     if (dbInstance || useFallbackStore) {
       return resolve(dbInstance || 'fallback');
     }
@@ -75,7 +79,6 @@ function initDB() {
     try {
       if (!window.indexedDB) {
         useFallbackStore = true;
-        seedFallbackDemoData();
         return resolve('fallback');
       }
 
@@ -136,6 +139,12 @@ function initDB() {
           catStore.createIndex('name', 'name', { unique: false });
         }
 
+        if (!db.objectStoreNames.contains('newOrders')) {
+          const orderStore = db.createObjectStore('newOrders', { keyPath: 'id' });
+          orderStore.createIndex('buyerId', 'buyerId', { unique: false });
+          orderStore.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
         }
@@ -150,14 +159,20 @@ function initDB() {
 
         try {
           const existingShops = await getAll('shops');
-          if (existingShops.length === 0) {
-            seedFallbackDemoData();
-            for (const s of fallbackData.shops) await saveItem('shops', s);
-            for (const c of fallbackData.customers) await saveItem('customers', c);
-            for (const sl of fallbackData.sales) await saveItem('sales', sl);
-            for (const p of fallbackData.purchases) await saveItem('purchases', p);
-            for (const e of fallbackData.expenses) await saveItem('expenses', e);
-            for (const b of fallbackData.budgets) await saveItem('budgets', b);
+          for (const s of existingShops) {
+            if (s.id && s.id.startsWith('shop_demo_')) await deleteItem('shops', s.id);
+          }
+          const existingCusts = await getAll('customers');
+          for (const c of existingCusts) {
+            if (c.id && c.id.startsWith('cust_demo_')) await deleteItem('customers', c.id);
+          }
+          const existingSales = await getAll('sales');
+          for (const s of existingSales) {
+            if (s.id && s.id.startsWith('sale_demo_')) await deleteItem('sales', s.id);
+          }
+          const existingPurchs = await getAll('purchases');
+          for (const p of existingPurchs) {
+            if (p.id && p.id.startsWith('purch_demo_')) await deleteItem('purchases', p.id);
           }
         } catch (err) {}
 
@@ -167,13 +182,11 @@ function initDB() {
       request.onerror = (event) => {
         console.warn('IndexedDB open blocked/error, using fallback store:', event);
         useFallbackStore = true;
-        seedFallbackDemoData();
         resolve('fallback');
       };
     } catch (e) {
       console.warn('IndexedDB exception, using fallback store:', e);
       useFallbackStore = true;
-      seedFallbackDemoData();
       resolve('fallback');
     }
   });
@@ -185,73 +198,135 @@ function getStore(storeName, mode = 'readonly') {
 }
 
 function getAll(storeName) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     initDB().then(() => {
-      if (useFallbackStore) {
+      if (useFallbackStore || !dbInstance) {
         const list = fallbackData[storeName] || [];
         return resolve(JSON.parse(JSON.stringify(list)));
       }
-      const store = getStore(storeName, 'readonly');
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readonly');
+        const request = store.getAll();
+        request.onsuccess = () => {
+          const res = request.result || [];
+          if (res.length > 0) {
+            resolve(res);
+          } else {
+            const list = fallbackData[storeName] || [];
+            resolve(JSON.parse(JSON.stringify(list)));
+          }
+        };
+        request.onerror = () => {
+          const list = fallbackData[storeName] || [];
+          resolve(JSON.parse(JSON.stringify(list)));
+        };
+      } catch (e) {
+        const list = fallbackData[storeName] || [];
+        resolve(JSON.parse(JSON.stringify(list)));
+      }
+    }).catch(() => {
+      const list = fallbackData[storeName] || [];
+      resolve(JSON.parse(JSON.stringify(list)));
+    });
   });
 }
 
 function getItem(storeName, id) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     initDB().then(() => {
-      if (useFallbackStore) {
+      if (useFallbackStore || !dbInstance) {
         const list = fallbackData[storeName] || [];
-        const found = list.find(item => item.id === id) || null;
+        const found = list.find(item => (item.id || item.key) === id) || null;
         return resolve(JSON.parse(JSON.stringify(found)));
       }
-      const store = getStore(storeName, 'readonly');
-      const request = store.get(id);
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readonly');
+        const request = store.get(id);
+        request.onsuccess = () => {
+          if (request.result) {
+            resolve(request.result);
+          } else {
+            const list = fallbackData[storeName] || [];
+            const found = list.find(item => (item.id || item.key) === id) || null;
+            resolve(JSON.parse(JSON.stringify(found)));
+          }
+        };
+        request.onerror = () => {
+          const list = fallbackData[storeName] || [];
+          const found = list.find(item => (item.id || item.key) === id) || null;
+          resolve(JSON.parse(JSON.stringify(found)));
+        };
+      } catch (e) {
+        const list = fallbackData[storeName] || [];
+        const found = list.find(item => (item.id || item.key) === id) || null;
+        resolve(JSON.parse(JSON.stringify(found)));
+      }
+    }).catch(() => {
+      const list = fallbackData[storeName] || [];
+      const found = list.find(item => (item.id || item.key) === id) || null;
+      resolve(JSON.parse(JSON.stringify(found)));
+    });
   });
 }
 
 function saveItem(storeName, item) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    if (!fallbackData[storeName]) fallbackData[storeName] = [];
+    const itemId = item.id || item.key;
+    if (itemId) {
+      const idx = fallbackData[storeName].findIndex(i => (i.id || i.key) === itemId);
+      if (idx >= 0) {
+        fallbackData[storeName][idx] = item;
+      } else {
+        fallbackData[storeName].push(item);
+      }
+      persistFallbackData();
+    }
+
     initDB().then(() => {
-      if (useFallbackStore) {
-        if (!fallbackData[storeName]) fallbackData[storeName] = [];
-        const idx = fallbackData[storeName].findIndex(i => i.id === item.id);
-        if (idx >= 0) {
-          fallbackData[storeName][idx] = item;
-        } else {
-          fallbackData[storeName].push(item);
-        }
-        persistFallbackData();
+      if (useFallbackStore || !dbInstance) {
         return resolve(item);
       }
-      const store = getStore(storeName, 'readwrite');
-      const request = store.put(item);
-      request.onsuccess = () => resolve(item);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.put(item);
+        request.onsuccess = () => resolve(item);
+        request.onerror = (err) => {
+          console.warn(`IndexedDB put error for ${storeName}:`, err);
+          resolve(item);
+        };
+      } catch (e) {
+        console.warn(`IndexedDB store error for ${storeName}:`, e);
+        resolve(item);
+      }
+    }).catch(() => {
+      resolve(item);
+    });
   });
 }
 
 function deleteItem(storeName, id) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    if (fallbackData[storeName]) {
+      fallbackData[storeName] = fallbackData[storeName].filter(i => (i.id || i.key) !== id);
+      persistFallbackData();
+    }
+
     initDB().then(() => {
-      if (useFallbackStore) {
-        if (fallbackData[storeName]) {
-          fallbackData[storeName] = fallbackData[storeName].filter(i => i.id !== id);
-          persistFallbackData();
-        }
+      if (useFallbackStore || !dbInstance) {
         return resolve(true);
       }
-      const store = getStore(storeName, 'readwrite');
-      const request = store.delete(id);
-      request.onsuccess = () => resolve(true);
-      request.onerror = () => reject(request.error);
-    }).catch(reject);
+      try {
+        const store = getStore(storeName, 'readwrite');
+        const request = store.delete(id);
+        request.onsuccess = () => resolve(true);
+        request.onerror = () => resolve(true);
+      } catch (e) {
+        resolve(true);
+      }
+    }).catch(() => {
+      resolve(true);
+    });
   });
 }
 
@@ -273,6 +348,7 @@ async function exportBackupJSON() {
     budgets: await getAll('budgets'),
     plannedPurchases: await getAll('plannedPurchases'),
     catalog: await getAll('catalog'),
+    newOrders: await getAll('newOrders'),
     settings: await getAll('settings')
   };
   return JSON.stringify(backup, null, 2);
@@ -287,14 +363,14 @@ async function importBackupJSON(jsonContent) {
     throw new Error('Invalid JSON backup file format');
   }
 
-  if (!parsed || typeof parsed !== 'object') {
+  if (!parsed || (parsed.app !== 'Sigma Lures Business Manager' && !parsed.sales)) {
     throw new Error('Unrecognized backup format for Sigma Lures');
   }
 
   const putMany = async (storeName, items) => {
     if (!Array.isArray(items)) return;
     for (const item of items) {
-      if (item && item.id) {
+      if (item && (item.id || item.key)) {
         await saveItem(storeName, item);
       }
     }
@@ -308,6 +384,7 @@ async function importBackupJSON(jsonContent) {
   if (parsed.budgets) await putMany('budgets', parsed.budgets);
   if (parsed.plannedPurchases) await putMany('plannedPurchases', parsed.plannedPurchases);
   if (parsed.catalog) await putMany('catalog', parsed.catalog);
+  if (parsed.newOrders) await putMany('newOrders', parsed.newOrders);
   if (parsed.settings) await putMany('settings', parsed.settings);
 
   return true;
@@ -333,3 +410,4 @@ window.SigmaDB = {
   exportBackupJSON,
   importBackupJSON
 };
+
