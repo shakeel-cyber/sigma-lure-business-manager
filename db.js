@@ -8,14 +8,17 @@ const DB_VERSION = 4;
 
 // Default Preloaded Product Catalog with Wholesale & Retail Prices
 const DEFAULT_CATALOG = [
-  { id: 'cat_1', name: 'Brine', weight: '8g', wholesalePrice: 120, retailPrice: 170 },
-  { id: 'cat_2', name: 'Drift', weight: '10g', wholesalePrice: 130, retailPrice: 180 },
-  { id: 'cat_3', name: 'Drift', weight: '15g', wholesalePrice: 140, retailPrice: 190 },
-  { id: 'cat_4', name: 'Drift', weight: '20g', wholesalePrice: 150, retailPrice: 200 },
-  { id: 'cat_5', name: 'Apex', weight: '25g', wholesalePrice: 200, retailPrice: 260 },
-  { id: 'cat_6', name: 'Apex', weight: '35g', wholesalePrice: 220, retailPrice: 280 },
-  { id: 'cat_7', name: 'Pulse', weight: '40g', wholesalePrice: 230, retailPrice: 300 },
-  { id: 'cat_8', name: 'Pulse', weight: '50g', wholesalePrice: 250, retailPrice: 320 }
+  { id: 'cat_1',  name: 'Brine', weight: '8g',  wholesalePrice: 120, retailPrice: 170 },
+  { id: 'cat_2',  name: 'Drift', weight: '10g', wholesalePrice: 130, retailPrice: 180 },
+  { id: 'cat_3',  name: 'Apex',  weight: '7g',  wholesalePrice: 180, retailPrice: 240 },
+  { id: 'cat_4',  name: 'Apex',  weight: '10g', wholesalePrice: 180, retailPrice: 240 },
+  { id: 'cat_5',  name: 'Apex',  weight: '15g', wholesalePrice: 190, retailPrice: 250 },
+  { id: 'cat_6',  name: 'Apex',  weight: '20g', wholesalePrice: 200, retailPrice: 260 },
+  { id: 'cat_7',  name: 'Apex',  weight: '30g', wholesalePrice: 210, retailPrice: 270 },
+  { id: 'cat_8',  name: 'Pulse', weight: '40g', wholesalePrice: 230, retailPrice: 300 },
+  { id: 'cat_9',  name: 'Pulse', weight: '50g', wholesalePrice: 250, retailPrice: 320 },
+  { id: 'cat_10', name: 'Pulse', weight: '60g', wholesalePrice: 260, retailPrice: 330 },
+  { id: 'cat_11', name: 'Pulse', weight: '80g', wholesalePrice: 270, retailPrice: 340 }
 ];
 
 let dbInstance = null;
@@ -45,6 +48,10 @@ function seedFallbackDemoData() {
       if (Array.isArray(parsed.expenses)) parsed.expenses = parsed.expenses.filter(e => !e.id || !e.id.startsWith('exp_demo_'));
       if (Array.isArray(parsed.budgets)) parsed.budgets = parsed.budgets.filter(b => !b.id || !b.id.startsWith('bdg_demo_'));
       Object.assign(fallbackData, parsed);
+
+      // Reconcile catalog: always use current DEFAULT_CATALOG, removing stale entries
+      fallbackData.catalog = DEFAULT_CATALOG.slice();
+      persistFallbackData();
       return;
     }
   } catch (e) {}
@@ -153,9 +160,21 @@ function initDB() {
       request.onsuccess = async (event) => {
         dbInstance = event.target.result;
 
+        // Upsert all current catalog entries
         for (const item of DEFAULT_CATALOG) {
           await saveItem('catalog', item);
         }
+
+        // Remove any stale catalog entries not in the current DEFAULT_CATALOG
+        try {
+          const validIds = new Set(DEFAULT_CATALOG.map(c => c.id));
+          const allCat = await getAll('catalog');
+          for (const entry of allCat) {
+            if (entry.id && !validIds.has(entry.id)) {
+              await deleteItem('catalog', entry.id);
+            }
+          }
+        } catch (err) {}
 
         try {
           const existingShops = await getAll('shops');

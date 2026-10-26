@@ -65,6 +65,11 @@ function seedFallbackDemoData() {
       if (Array.isArray(parsed.expenses)) parsed.expenses = parsed.expenses.filter(e => !e.id || !e.id.startsWith('exp_demo_'));
       if (Array.isArray(parsed.budgets)) parsed.budgets = parsed.budgets.filter(b => !b.id || !b.id.startsWith('bdg_demo_'));
       Object.assign(fallbackData, parsed);
+
+      // Reconcile catalog: replace with current DEFAULT_CATALOG, removing stale entries
+      const validIds = new Set(DEFAULT_CATALOG.map(c => c.id));
+      fallbackData.catalog = DEFAULT_CATALOG.slice();
+      persistFallbackData();
       return;
     }
   } catch (e) {}
@@ -174,9 +179,21 @@ function initDB() {
       request.onsuccess = async (event) => {
         dbInstance = event.target.result;
 
+        // Upsert all current catalog entries
         for (const item of DEFAULT_CATALOG) {
           await saveItem('catalog', item);
         }
+
+        // Remove any stale catalog entries not in the current DEFAULT_CATALOG
+        try {
+          const validIds = new Set(DEFAULT_CATALOG.map(c => c.id));
+          const allCat = await getAll('catalog');
+          for (const entry of allCat) {
+            if (entry.id && !validIds.has(entry.id)) {
+              await deleteItem('catalog', entry.id);
+            }
+          }
+        } catch (err) {}
 
         try {
           const existingShops = await getAll('shops');
