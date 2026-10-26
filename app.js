@@ -13,12 +13,15 @@ const DB_VERSION = 4;
 const DEFAULT_CATALOG = [
   { id: 'cat_1', name: 'Brine', weight: '8g', wholesalePrice: 120, retailPrice: 170 },
   { id: 'cat_2', name: 'Drift', weight: '10g', wholesalePrice: 130, retailPrice: 180 },
-  { id: 'cat_3', name: 'Drift', weight: '15g', wholesalePrice: 140, retailPrice: 190 },
-  { id: 'cat_4', name: 'Drift', weight: '20g', wholesalePrice: 150, retailPrice: 200 },
-  { id: 'cat_5', name: 'Apex', weight: '25g', wholesalePrice: 200, retailPrice: 260 },
-  { id: 'cat_6', name: 'Apex', weight: '35g', wholesalePrice: 220, retailPrice: 280 },
-  { id: 'cat_7', name: 'Pulse', weight: '40g', wholesalePrice: 230, retailPrice: 300 },
-  { id: 'cat_8', name: 'Pulse', weight: '50g', wholesalePrice: 250, retailPrice: 320 }
+  { id: 'cat_3', name: 'Apex', weight: '7g', wholesalePrice: 180, retailPrice: 240 },
+  { id: 'cat_4', name: 'Apex', weight: '10g', wholesalePrice: 180, retailPrice: 240 },
+  { id: 'cat_5', name: 'Apex', weight: '15g', wholesalePrice: 190, retailPrice: 250 },
+  { id: 'cat_6', name: 'Apex', weight: '20g', wholesalePrice: 200, retailPrice: 260 },
+  { id: 'cat_7', name: 'Apex', weight: '30g', wholesalePrice: 210, retailPrice: 270 },
+  { id: 'cat_8', name: 'Pulse', weight: '40g', wholesalePrice: 230, retailPrice: 300 },
+  { id: 'cat_9', name: 'Pulse', weight: '50g', wholesalePrice: 250, retailPrice: 320 },
+  { id: 'cat_10', name: 'Pulse', weight: '60g', wholesalePrice: 260, retailPrice: 330 },
+  { id: 'cat_11', name: 'Pulse', weight: '80g', wholesalePrice: 270, retailPrice: 340 }
 ];
 
 let dbInstance = null;
@@ -2120,14 +2123,17 @@ function renderDashboardStats() {
 
 // Baseline Lure Production Cost & Profit Configuration (Wholesale & Retail - Rounded Costs)
 const LURE_PROFIT_CONFIG = [
-  { model: 'Brine', weight: '8g',  wholesalePrice: 120, retailPrice: 170, productionCost: 50 },
+  { model: 'Brine', weight: '8g', wholesalePrice: 120, retailPrice: 170, productionCost: 50 },
   { model: 'Drift', weight: '10g', wholesalePrice: 130, retailPrice: 180, productionCost: 50 },
-  { model: 'Drift', weight: '15g', wholesalePrice: 140, retailPrice: 190, productionCost: 50 },
-  { model: 'Drift', weight: '20g', wholesalePrice: 150, retailPrice: 200, productionCost: 50 },
-  { model: 'Apex',  weight: '25g', wholesalePrice: 200, retailPrice: 260, productionCost: 74 },
-  { model: 'Apex',  weight: '35g', wholesalePrice: 210, retailPrice: 280, productionCost: 77 },
+  { model: 'Apex', weight: '7g', wholesalePrice: 180, retailPrice: 240, productionCost: 50 },
+  { model: 'Apex', weight: '10g', wholesalePrice: 180, retailPrice: 240, productionCost: 50 },
+  { model: 'Apex', weight: '15g', wholesalePrice: 190, retailPrice: 250, productionCost: 50 },
+  { model: 'Apex', weight: '20g', wholesalePrice: 200, retailPrice: 260, productionCost: 50 },
+  { model: 'Apex', weight: '30g', wholesalePrice: 210, retailPrice: 270, productionCost: 50 },
   { model: 'Pulse', weight: '40g', wholesalePrice: 230, retailPrice: 300, productionCost: 78 },
-  { model: 'Pulse', weight: '50g', wholesalePrice: 250, retailPrice: 320, productionCost: 81 }
+  { model: 'Pulse', weight: '50g', wholesalePrice: 250, retailPrice: 320, productionCost: 81 },
+  { model: 'Pulse', weight: '60g', wholesalePrice: 260, retailPrice: 330, productionCost: 85 },
+  { model: 'Pulse', weight: '80g', wholesalePrice: 270, retailPrice: 340, productionCost: 90 }
 ];
 
 let currentProfitFilter = 'all';
